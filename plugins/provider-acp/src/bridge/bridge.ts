@@ -80,6 +80,8 @@ import {
 } from "../session-params.js";
 import {
   getAcpProviderHealth,
+  getAcpProviderInstallationRun,
+  getAcpProviderInstallationStatus,
   getAcpProviderUsage,
 } from "./provider-maintenance.js";
 import {
@@ -2266,6 +2268,31 @@ async function handleRequest(
         await getAcpProviderUsage({
           providerId: request.params.providerId,
           command: profile?.agentCommand.command ?? null,
+        }),
+      );
+      return;
+    }
+
+    case "provider/installation/status": {
+      const profile = decodeLaunchProfile(request.params.providerOptions);
+      sendResult(
+        request.id,
+        await getAcpProviderInstallationStatus({
+          providerId: request.params.providerId,
+          command: profile?.agentCommand.command ?? null,
+        }),
+      );
+      return;
+    }
+
+    case "provider/installation/run": {
+      const profile = decodeLaunchProfile(request.params.providerOptions);
+      sendResult(
+        request.id,
+        await getAcpProviderInstallationRun({
+          providerId: request.params.providerId,
+          command: profile?.agentCommand.command ?? null,
+          action: request.params.action,
         }),
       );
       return;

@@ -1,3 +1,8 @@
+// Version 141 moves provider installation status and execution plans into the
+// provider bridge contract. The server now sends provider-scoped
+// `provider.installation.*` commands with bridge launch metadata; older
+// daemons only understand the removed hard-coded `provider_cli.*` commands.
+//
 // Version 140 reports each daemon's browser-local editor helper port during
 // session open. The server uses those ports to let a remote browser discover
 // the helper on its own machine instead of assuming every machine uses the
@@ -77,7 +82,7 @@
 //
 // The version mismatch is what triggers the enrolled daemon's automatic update
 // instead of an `invalid-message` reconnect loop.
-export const HOST_DAEMON_PROTOCOL_VERSION = 140 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 141 as const;
 
 /**
  * Absolute ceiling for any executable artifact delivered to a host daemon —
