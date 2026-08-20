@@ -438,6 +438,47 @@ describe("acp configOptions model catalog", () => {
     ]);
   });
 
+  it("keeps per-option descriptions that disambiguate duplicate model names", () => {
+    // OMP-style agents send description: "provider/modelId" on every model
+    // select option, and two providers can expose the same display name;
+    // the picker needs each option's description to tell them apart.
+    const models = buildModelCatalogFromConfigOptions({
+      id: "model",
+      category: "model",
+      type: "select",
+      options: [
+        { value: "zai/glm-4.7", name: "GLM 4.7", description: "zai/glm-4.7" },
+        {
+          value: "openai/glm-4.7",
+          name: "GLM 4.7",
+          description: "openai/glm-4.7",
+        },
+        { value: "opencode/big-pickle", name: "Big Pickle" },
+      ],
+    });
+
+    expect(models).toMatchObject([
+      {
+        id: "zai/glm-4.7",
+        model: "zai/glm-4.7",
+        displayName: "GLM 4.7",
+        description: "zai/glm-4.7",
+      },
+      {
+        id: "openai/glm-4.7",
+        model: "openai/glm-4.7",
+        displayName: "GLM 4.7",
+        description: "openai/glm-4.7",
+      },
+      {
+        id: "opencode/big-pickle",
+        model: "opencode/big-pickle",
+        displayName: "Big Pickle",
+        description: "",
+      },
+    ]);
+  });
+
   it("finds and maps ACP thought_level config options", () => {
     const thoughtLevel = {
       id: "effort",

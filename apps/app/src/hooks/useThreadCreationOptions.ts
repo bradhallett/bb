@@ -599,6 +599,7 @@ export function useThreadCreationOptions(
         ...(model.routeProviderId
           ? { routeProviderId: model.routeProviderId }
           : {}),
+        ...(model.description ? { description: model.description } : {}),
       })),
     [availableModels],
   );
@@ -619,6 +620,7 @@ export function useThreadCreationOptions(
           ...(model.routeProviderId
             ? { routeProviderId: model.routeProviderId }
             : {}),
+          ...(model.description ? { description: model.description } : {}),
         })),
     [executionOptionsQuery.data?.selectedOnlyModels, availableModels],
   );

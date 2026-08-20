@@ -103,17 +103,19 @@ const splitPaneContext: PaneContextValue = {
 function availableModel({
   value,
   label,
+  description = "",
   isDefault = false,
 }: {
   value: string;
   label: string;
+  description?: string;
   isDefault?: boolean;
 }): AvailableModel {
   return {
     id: value,
     model: value,
     displayName: label,
-    description: "",
+    description,
     supportedReasoningEfforts: [
       { reasoningEffort: "medium", description: "Medium" },
     ],
@@ -544,6 +546,43 @@ describe("ModelReasoningPicker", () => {
     fireEvent.click(apiQualifier);
 
     expect(onModelChange).toHaveBeenCalledWith(apiModel);
+  });
+
+  it("distinguishes duplicate preview models by description and preserves value", async () => {
+    const { onModelChange } = renderPicker({
+      alternateProviderModels: [
+        availableModel({
+          value: "zai/glm-4.7",
+          label: "GLM 4.7",
+          description: "zai/glm-4.7",
+          isDefault: true,
+        }),
+        availableModel({
+          value: "openrouter/glm-4.7",
+          label: "GLM 4.7",
+          description: "openrouter/glm-4.7",
+        }),
+      ],
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Provider, model and reasoning",
+    });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByTitle("Claude Code"));
+
+    const zaiDescription = await screen.findByText("zai/glm-4.7");
+    const openRouterDescription = screen.getByText("openrouter/glm-4.7");
+    const zaiRow = zaiDescription.closest("button");
+    const openRouterRow = openRouterDescription.closest("button");
+    expect(zaiRow).not.toBeNull();
+    expect(openRouterRow).not.toBeNull();
+    expect(zaiRow).not.toBe(openRouterRow);
+    expect(zaiRow?.textContent).toContain("GLM 4.7");
+    expect(openRouterRow?.textContent).toContain("GLM 4.7");
+
+    fireEvent.click(openRouterDescription);
+
+    expect(onModelChange).toHaveBeenCalledWith("openrouter/glm-4.7");
   });
 
   it("fuzzy-filters a long model list and selects the match by keyboard", () => {

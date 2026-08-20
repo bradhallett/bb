@@ -391,6 +391,7 @@ export function ModelReasoningPicker({
       ...(model.routeProviderId
         ? { routeProviderId: model.routeProviderId }
         : {}),
+      ...(model.description ? { description: model.description } : {}),
     }));
   }, [isPreviewing, modelOptions, previewQuery.data?.models, formatModelLabel]);
   const previewMoreModelOptions = useMemo((): readonly ModelPickerOption[] => {
@@ -405,6 +406,7 @@ export function ModelReasoningPicker({
       ...(model.routeProviderId
         ? { routeProviderId: model.routeProviderId }
         : {}),
+      ...(model.description ? { description: model.description } : {}),
     }));
   }, [
     isPreviewing,
@@ -1045,6 +1047,7 @@ export function ModelReasoningPicker({
                         activeProviderId,
                       )}
                       qualifier={option.routeProviderId}
+                      description={option.description}
                       selected={!isPreviewing && option.value === modelValue}
                       onClick={() => handleModelSelect(option.value)}
                     />
@@ -1359,6 +1362,7 @@ function MoreModelsSubmenu({
               key={option.value}
               label={stripModelBrandPrefix(option.label, activeProviderId)}
               qualifier={option.routeProviderId}
+              description={option.description}
               selected={!isPreviewing && option.value === modelValue}
               onClick={() => onSelect(option.value)}
             />
@@ -1386,6 +1390,7 @@ function ResetBrowseStateOnContentUnmount({
 function MenuRowButton({
   label,
   qualifier,
+  description,
   selected,
   onClick,
   isActive,
@@ -1396,6 +1401,7 @@ function MenuRowButton({
 }: {
   label: string;
   qualifier?: string;
+  description?: string;
   selected: boolean;
   onClick: () => void;
   isActive?: boolean;
@@ -1429,16 +1435,21 @@ function MenuRowButton({
       )}
       {...hoverProps}
     >
-      <span
-        className="truncate"
-        title={qualifier ? `${label} · ${qualifier}` : label}
-      >
-        {base}
-        {tag ? (
-          <span className="ml-1.5 text-subtle-foreground">{tag}</span>
-        ) : null}
-        {qualifier ? (
-          <span className="ml-1.5 text-subtle-foreground">{qualifier}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span
+          className="truncate"
+          title={qualifier ? `${label} · ${qualifier}` : label}
+        >
+          {base}
+          {tag ? (
+            <span className="ml-1.5 text-subtle-foreground">{tag}</span>
+          ) : null}
+          {qualifier ? (
+            <span className="ml-1.5 text-subtle-foreground">{qualifier}</span>
+          ) : null}
+        </span>
+        {description ? (
+          <span className="truncate text-subtle-foreground">{description}</span>
         ) : null}
       </span>
       <span className="flex shrink-0 items-center gap-1.5">

@@ -66,6 +66,29 @@ describe("resolveModelSelection", () => {
     expect(resolved.isRecovery).toBe(false);
   });
 
+  it("carries the model description verbatim into the picker option", () => {
+    const resolved = resolveModelSelection({
+      executionOptions: response({
+        models: [
+          model({
+            model: "acme/glm-4.7",
+            displayName: "GLM 4.7",
+            description: "acme/glm-4.7",
+          }),
+        ],
+      }),
+      selectedModel: "acme/glm-4.7",
+      catalogVerified: true,
+    });
+    expect(resolved.options).toEqual([
+      {
+        value: "acme/glm-4.7",
+        label: "GLM 4.7",
+        description: "acme/glm-4.7",
+      },
+    ]);
+  });
+
   it("promotes a retired-but-selected model instead of silently switching", () => {
     const resolved = resolveModelSelection({
       executionOptions: catalog,
