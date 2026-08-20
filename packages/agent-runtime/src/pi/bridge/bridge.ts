@@ -611,8 +611,6 @@ async function handleRequest(
           threadGoalClear: false,
           fork: "checkpoint",
           approvalEnforcedBy: "runtime",
-          experimentalProviderHealth: true,
-          experimentalProviderUsage: true,
         },
       };
       sendResult(request.id, result);
