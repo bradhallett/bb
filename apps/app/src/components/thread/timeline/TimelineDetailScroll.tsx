@@ -1,4 +1,11 @@
-import { useCallback, type ReactNode, type UIEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -7,6 +14,10 @@ import {
 } from "../../ui/detail-scroll-size.js";
 import { useStickyBottomScroll } from "./useStickyBottomScroll.js";
 import { useScrollOverflowState } from "./useScrollOverflowState.js";
+import {
+  TimelineWindowingScrollRootContext,
+  type TimelineWindowingScrollRoot,
+} from "./TimelineWindowedItems.js";
 
 export interface TimelineDetailScrollProps {
   size: DetailScrollSize;
@@ -37,6 +48,8 @@ export interface TimelineDetailScrollProps {
   children: ReactNode;
 }
 
+const DETAIL_SCROLL_GESTURE_IDLE_MS = 600;
+
 // Single component for both streaming and static modes. The previous design
 // rendered separate `<StreamingDetailScroll>` / `<StaticDetailScroll>`
 // subtrees, but flipping `streaming` on completion swapped one for the other,
@@ -62,9 +75,29 @@ export function TimelineDetailScroll({
   const overflow = useScrollOverflowState<HTMLDivElement>();
   const maxHeightClassName = getDetailScrollMaxHeightClass(size);
   const { aboveOverflow, belowOverflow } = overflow;
+  const scrollGestureTimeoutRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (scrollGestureTimeoutRef.current !== null) {
+        window.clearTimeout(scrollGestureTimeoutRef.current);
+      }
+      sticky.ref.current?.removeAttribute("data-scrollbar-scrolling");
+    },
+    [sticky.ref],
+  );
 
   const handleScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
+      const scrollElement = event.currentTarget;
+      scrollElement.dataset.scrollbarScrolling = "true";
+      if (scrollGestureTimeoutRef.current !== null) {
+        window.clearTimeout(scrollGestureTimeoutRef.current);
+      }
+      scrollGestureTimeoutRef.current = window.setTimeout(() => {
+        scrollGestureTimeoutRef.current = null;
+        scrollElement.removeAttribute("data-scrollbar-scrolling");
+      }, DETAIL_SCROLL_GESTURE_IDLE_MS);
       sticky.onScroll(event);
     },
     [sticky],
@@ -73,6 +106,10 @@ export function TimelineDetailScroll({
   const refCallback = useComposedRefs<HTMLDivElement>(
     sticky.ref,
     overflow.scrollRef,
+  );
+  const windowingScrollRoot = useMemo<TimelineWindowingScrollRoot>(
+    () => ({ getScrollElement: () => sticky.ref.current }),
+    [sticky.ref],
   );
 
   return (
@@ -103,7 +140,13 @@ export function TimelineDetailScroll({
         {/* Content-only height changes (image loads, disclosure toggles)
             never resize the scroll port; this wrapper gives the sticky
             hook's ResizeObserver a box that tracks them. */}
-        <div ref={sticky.contentRef}>{children}</div>
+        <div ref={sticky.contentRef}>
+          <TimelineWindowingScrollRootContext.Provider
+            value={windowingScrollRoot}
+          >
+            {children}
+          </TimelineWindowingScrollRootContext.Provider>
+        </div>
         <div
           ref={overflow.bottomSentinelRef}
           aria-hidden
