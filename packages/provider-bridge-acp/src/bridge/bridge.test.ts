@@ -23,7 +23,10 @@ import type {
   CapturedBridgeJsonRpcOutput,
 } from "@bb/provider-bridge-protocol/testing";
 
-import { handleLine } from "./bridge.js";
+import {
+  __setSpontaneousTurnIdleTimeoutForTests,
+  handleLine,
+} from "./bridge.js";
 import { ACP_BRIDGE_NO_ACTIVE_TURN_ERROR_CODE } from "../bridge-protocol.js";
 import { ACP_BRIDGE_MCP_SERVER_NAME } from "./tool-proxy-mcp.js";
 
@@ -1334,6 +1337,99 @@ describe("acp bridge", () => {
     expect(completed).toMatchObject({ status: "completed" });
     expect(threadEventsOfType("turn/started")).toHaveLength(1);
     expect(agentMessageTexts()).toContain("echo:hello there");
+  });
+
+  describe("agent-initiated turns (OMP async-job delivery)", () => {
+    afterEach(() => {
+      __setSpontaneousTurnIdleTimeoutForTests(undefined);
+    });
+
+    it("opens a vouched turn for unsolicited agent output and closes it on quiet", async () => {
+      __setSpontaneousTurnIdleTimeoutForTests(150);
+      const { providerThreadId } = await startThread();
+      const turnId = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "spontaneous-stream:2", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      await waitFor(
+        () =>
+          agentMessageTexts().some((t) => t.includes("spontaneous:1"))
+            ? true
+            : undefined,
+        "spontaneous stream",
+      );
+      await waitFor(
+        () =>
+          threadEventsOfType("turn/completed").length >= 2 ? true : undefined,
+        "spontaneous turn quiet-close",
+      );
+
+      expect(threadEventsOfType("turn/started")).toHaveLength(2);
+      const joined = agentMessageTexts().join("");
+      expect(joined).toContain("spontaneous:0spontaneous:1");
+      // The injected result echo stays noise: exactly one accepted input (the
+      // user turn), no phantom user row for the replayed async result.
+      expect(
+        emittedDeltaKinds().filter((kind) => kind === "input.accepted"),
+      ).toHaveLength(1);
+    });
+
+    it("settles a still-open spontaneous turn before the next bb turn opens", async () => {
+      const { providerThreadId } = await startThread();
+      const first = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "spontaneous-stream:2", mentions: [] }],
+      });
+      await waitForResponse(first);
+      await waitForTurnCompleted();
+      // Wait until the spontaneous stream has fully arrived: the turn stays
+      // open (the production 120s quiet window is running) but is quiescent.
+      await waitFor(
+        () =>
+          agentMessageTexts().some((t) => t.includes("spontaneous:1"))
+            ? true
+            : undefined,
+        "spontaneous stream complete",
+      );
+
+      // The 120s quiet window is still running, so the spontaneous turn is open
+      // when the user's next turn arrives; it must settle before the new turn.
+      const second = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "hello there", mentions: [] }],
+      });
+      await waitForResponse(second);
+      await waitFor(
+        () =>
+          threadEventsOfType("turn/completed").length === 3 ? true : undefined,
+        "all three turns settled",
+      );
+
+      expect(threadEventsOfType("turn/started")).toHaveLength(3);
+      expect(threadEventsOfType("turn/completed")).toHaveLength(3);
+      const texts = agentMessageTexts();
+      expect(texts.join("")).toContain("spontaneous:0spontaneous:1");
+      expect(texts.at(-1)).toBe("echo:hello there");
+    });
+
+    it("does not open a turn for unsolicited non-work updates", async () => {
+      const { providerThreadId } = await startThread();
+      const turnId = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "spontaneous-noise", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+      // The noise update is followed by a usage_update: a positive bridge-side
+      // signal (a contextWindow delta) that the idle traffic was processed.
+      await waitFor(
+        () =>
+          emittedDeltaKinds().includes("contextWindow") ? true : undefined,
+        "idle usage_update contextWindow delta",
+      );
+
+      expect(threadEventsOfType("turn/started")).toHaveLength(1);
+      expect(threadEventsOfType("turn/completed")).toHaveLength(1);
+    });
   });
 
   it("authenticates ACP sessions with cached tokens when advertised", async () => {

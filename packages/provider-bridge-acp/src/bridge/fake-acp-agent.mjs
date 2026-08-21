@@ -448,6 +448,43 @@ async function handlePrompt(message) {
     notifyUpdate(
       messageChunk(`mcp-server-config:${JSON.stringify(currentMcpServers)}`),
     );
+  } else if (text.includes("spontaneous-stream")) {
+    // OMP async-delivery shape: once this prompt's response has gone out, the
+    // agent emits an unsolicited user_message_chunk (result injection) plus
+    // agent chunks with no session/prompt driving them. The count rides the
+    // text (`spontaneous-stream:4`), defaulting to 2, spaced 60ms apart.
+    const chunks = Number(text.match(/spontaneous-stream:(\d+)/)?.[1] ?? 2);
+    setTimeout(() => {
+      notifyUpdate({
+        sessionUpdate: "user_message_chunk",
+        content: { type: "text", text: "background job settled" },
+      });
+      for (let i = 0; i < chunks; i += 1) {
+        setTimeout(
+          () => {
+            notifyUpdate(messageChunk(`spontaneous:${i}`));
+          },
+          60 * (i + 1),
+        );
+      }
+    }, 40);
+  } else if (text.includes("spontaneous-noise")) {
+    // Unsolicited non-work update: must not open a turn.
+    setTimeout(() => {
+      notifyUpdate({
+        sessionUpdate: "available_commands_update",
+        commands: [],
+      });
+      // Followed by a usage_update: observable proof the idle traffic was
+      // processed even though neither update may open a turn.
+      setTimeout(() => {
+        notifyUpdate({
+          sessionUpdate: "usage_update",
+          used: 1_000,
+          size: 128_000,
+        });
+      }, 100);
+    }, 40);
   } else {
     notifyUpdate(messageChunk(`echo:${text}`));
   }

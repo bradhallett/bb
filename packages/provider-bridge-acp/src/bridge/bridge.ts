@@ -182,6 +182,13 @@ interface AcpThreadSession {
   stopping: boolean;
   /** Resolves when the in-flight turn or maintenance prompt fully settles. */
   turnSettled: Promise<void> | undefined;
+  /**
+   * True while a bridge-opened turn carries agent-initiated output (OMP
+   * async-job delivery): ACP brackets no turn for it, so the bridge vouches
+   * the lifecycle itself (provider-bridge-protocol.md, turn lifecycle rule 3).
+   */
+  spontaneousTurnOpen: boolean;
+  spontaneousQuietTimer: NodeJS.Timeout | undefined;
   pendingPermissions: Set<PendingAcpPermission>;
   cursorMcpApproval: CursorMcpApproval | undefined;
   /**
@@ -212,9 +219,20 @@ let dynamicToolBridgePromise: Promise<AcpDynamicToolBridge> | null = null;
 // this timeout forces disposal. Stop remains a best-effort success boundary.
 const THREAD_STOP_CANCEL_TIMEOUT_MS = 4_000;
 
-// ---------------------------------------------------------------------------
-// stdout helpers (bridge → runtime)
-// ---------------------------------------------------------------------------
+/**
+ * Quiet window that closes an agent-initiated turn. ACP gives it no end
+ * bracket, so silence is the only bridge-side signal; a slow provider can
+ * split such a turn (the next chunk re-opens one), never lose its output.
+ */
+export const SPONTANEOUS_TURN_IDLE_TIMEOUT_MS = 120_000;
+let spontaneousTurnIdleTimeoutMs = SPONTANEOUS_TURN_IDLE_TIMEOUT_MS;
+
+/** Shrinks the quiet window in tests; `undefined` restores production. */
+export function __setSpontaneousTurnIdleTimeoutForTests(
+  ms: number | undefined,
+): void {
+  spontaneousTurnIdleTimeoutMs = ms ?? SPONTANEOUS_TURN_IDLE_TIMEOUT_MS;
+}
 
 interface BridgeNotification {
   jsonrpc: "2.0";
@@ -1670,6 +1688,7 @@ function liveSessionForThread(
 }
 
 function removeSession(session: AcpThreadSession): void {
+  clearSpontaneousTurn(session);
   if (sessionsByBbThreadId.get(session.bbThreadId) === session) {
     sessionsByBbThreadId.delete(session.bbThreadId);
   }
@@ -1836,6 +1855,8 @@ async function startAgentSession(
     pendingLoadUsageUpdate: undefined,
     stopping: false,
     turnSettled: undefined,
+    spontaneousTurnOpen: false,
+    spontaneousQuietTimer: undefined,
     pendingPermissions: new Set(),
     cursorMcpApproval: undefined,
     deferStartEmit: emitStartNotification,
@@ -2039,6 +2060,8 @@ async function stopSession(session: AcpThreadSession): Promise<void> {
     "ACP session stopped before the steer was sent",
   );
   cancelPendingPermissions(session);
+  // An interrupt settles whatever work is open, vouched or prompted.
+  settleSpontaneousTurn(session, "cancelled");
 
   if (session.activePromptKind !== null && !session.connection.exited) {
     session.connection.notify("session/cancel", {
@@ -2192,6 +2215,7 @@ function runTurn(
   session: AcpThreadSession,
   firstInput: AcpPendingTurnInput,
 ): void {
+  settleSpontaneousTurn(session);
   session.activePromptKind = "turn";
   emitForSession(session, ACP_TURN_STARTED_METHOD, {
     threadId: session.bbThreadId,
@@ -2292,6 +2316,7 @@ function startCompaction(
   session: AcpThreadSession,
   pending: AcpPendingTurnInput,
 ): void {
+  settleSpontaneousTurn(session);
   session.activePromptKind = "compaction";
   emitForSession(session, ACP_COMPACTION_STARTED_METHOD, {
     threadId: session.bbThreadId,
@@ -2401,6 +2426,56 @@ function handleDialectRequest(
   responder.result(outcome.result);
 }
 
+// ---------------------------------------------------------------------------
+// Agent-initiated turns (OMP async-job delivery)
+// ---------------------------------------------------------------------------
+
+/**
+ * Session updates that carry agent work. Arriving with no prompt in flight
+ * they are an agent-initiated turn: ACP sends no turn bracket for it, so the
+ * bridge opens one itself — the sanctioned shape for provider-internal
+ * activity (provider-bridge-protocol.md, turn lifecycle rule 3). The next
+ * bb-initiated turn settles a still-open one first, `thread/stop` interrupts
+ * it, and a quiet window closes it as completed.
+ */
+const AGENT_WORK_UPDATE_KINDS: Record<string, true> = {
+  agent_message_chunk: true,
+  agent_thought_chunk: true,
+  tool_call: true,
+  tool_call_update: true,
+  plan: true,
+};
+
+function clearSpontaneousTurn(session: AcpThreadSession): void {
+  session.spontaneousTurnOpen = false;
+  if (session.spontaneousQuietTimer !== undefined) {
+    clearTimeout(session.spontaneousQuietTimer);
+    session.spontaneousQuietTimer = undefined;
+  }
+}
+
+function settleSpontaneousTurn(
+  session: AcpThreadSession,
+  stopReason: z.infer<typeof acpStopReasonSchema> = "end_turn",
+): void {
+  if (!session.spontaneousTurnOpen) {
+    return;
+  }
+  clearSpontaneousTurn(session);
+  emitForSession(session, ACP_TURN_COMPLETED_METHOD, {
+    threadId: session.bbThreadId,
+    stopReason,
+  });
+}
+
+function armSpontaneousQuietTimer(session: AcpThreadSession): void {
+  clearTimeout(session.spontaneousQuietTimer);
+  session.spontaneousQuietTimer = setTimeout(() => {
+    session.spontaneousQuietTimer = undefined;
+    settleSpontaneousTurn(session);
+  }, spontaneousTurnIdleTimeoutMs);
+}
+
 function handleAgentNotification(
   session: AcpThreadSession,
   method: string,
@@ -2440,6 +2515,18 @@ function handleAgentNotification(
   }
   if (parsed.data.sessionId !== session.providerThreadId) {
     return;
+  }
+  if (
+    session.activePromptKind === null &&
+    AGENT_WORK_UPDATE_KINDS[parsed.data.update.sessionUpdate] === true
+  ) {
+    if (!session.spontaneousTurnOpen) {
+      session.spontaneousTurnOpen = true;
+      emitForSession(session, ACP_TURN_STARTED_METHOD, {
+        threadId: session.bbThreadId,
+      });
+    }
+    armSpontaneousQuietTimer(session);
   }
   emitForSession(session, ACP_UPDATE_METHOD, update);
 }
