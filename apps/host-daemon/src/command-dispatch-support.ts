@@ -133,6 +133,12 @@ export function isExpectedCommandDispatchError(
 const EXPECTED_ONLINE_RPC_FAILURE_CODES = new Set([
   "file_too_large",
   "provision_cancelled",
+  // An unauthenticated agent is a user-state outcome, not a daemon bug: the
+  // errorCode travels to the server, which logs and surfaces it (model load
+  // error, turn error). The daemon-side "online host RPC failed" warn for it
+  // is duplicate noise — the startup provider.list_models probe races the
+  // ACP agent's auth handshake and hits this on every daemon start.
+  "auth_required",
 ]);
 
 export function isExpectedOnlineRpcFailureError(error: unknown): boolean {
