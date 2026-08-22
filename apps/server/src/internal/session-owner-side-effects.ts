@@ -20,7 +20,10 @@ import {
   reconcileDaemonReportedThreads,
 } from "../services/threads/thread-lifecycle.js";
 import { buildThreadStatusChangeMetadataByThreadId } from "../services/threads/thread-runtime-display.js";
-import { settleDanglingBackgroundTasks } from "../services/threads/background-task-reconciliation.js";
+import {
+  settleDanglingBackgroundTasks,
+  settleDaemonRestartedThreadRunsForResume,
+} from "../services/threads/background-task-reconciliation.js";
 
 const DAEMON_RESTARTED_PENDING_INTERACTION_REASON =
   "Host daemon restarted while awaiting user interaction; retry the thread to continue";
@@ -109,6 +112,7 @@ export async function handleHostSessionOpened(
         hostId: args.hostId,
         reason: DAEMON_RESTARTED_PENDING_INTERACTION_REASON,
       });
+      settleDaemonRestartedThreadRunsForResume(deps, { hostId: args.hostId });
       interruptActiveThreadsForHost(deps, {
         hostId: args.hostId,
         reason: "host-daemon-restarted",

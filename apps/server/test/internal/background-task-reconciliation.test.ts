@@ -492,7 +492,7 @@ describe("active thread disconnect reconciliation triggers", () => {
     });
   });
 
-  it("records a confirmed daemon restart when a different daemon instance registers", async () => {
+  it("resumes active turns whose provider session survives a daemon restart", async () => {
     await withTestHarness(async (harness) => {
       const { host, session, thread } = seedActiveTurnThread(harness);
 
@@ -519,24 +519,65 @@ describe("active thread disconnect reconciliation triggers", () => {
       });
 
       expect(response.status).toBe(201);
-      expect(getThread(harness.deps.db, thread.id)?.status).toBe("error");
+      expect(getThread(harness.deps.db, thread.id)?.status).toBe("idle");
       const rows = listEvents(harness.deps.db, { threadId: thread.id }).filter(
         (row) => row.type !== "turn/started",
       );
       expect(rows.map((row) => row.type)).toEqual([
         "turn/completed",
+        "system/thread/interrupted",
+      ]);
+      expect(JSON.parse(rows[0]!.data)).toMatchObject({
+        providerThreadId: "provider-turn-live-1",
+        status: "interrupted",
+      });
+      expect(JSON.parse(rows[1]!.data)).toEqual({
+        reason: "host-daemon-restarted",
+      });
+    });
+  });
+
+  it("interrupts active runs with no provider session to re-attach when a different daemon instance registers", async () => {
+    await withTestHarness(async (harness) => {
+      const { host, session, thread } = seedThreadFixture(harness, {
+        thread: { status: "active" },
+      });
+
+      handleDaemonSocketClosed(harness.deps, { sessionId: session.id });
+
+      const response = await harness.app.request("/internal/session/open", {
+        method: "POST",
+        headers: internalAuthHeaders(harness, {
+          hostId: host.id,
+          hostType: host.type,
+        }),
+        body: JSON.stringify({
+          hostId: host.id,
+          instanceId: "instance-restarted-no-session",
+          hostName: host.name,
+          hostType: host.type,
+          hasMachineCredential: false,
+          platform: "darwin",
+          dataDir: "/tmp/host-daemon-active-restarted-no-session",
+          localApiPort: null,
+          protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
+          activeThreads: [],
+        }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(getThread(harness.deps.db, thread.id)?.status).toBe("error");
+      const rows = listEvents(harness.deps.db, { threadId: thread.id });
+      expect(rows.map((row) => row.type)).toEqual([
         "system/error",
         "system/thread/interrupted",
       ]);
       expect(JSON.parse(rows[0]!.data)).toMatchObject({
-        status: "interrupted",
-      });
-      expect(JSON.parse(rows[1]!.data)).toMatchObject({
         code: "thread_command_failed",
         message: "Thread interrupted because the host daemon disconnected",
         detail: "Please retry the thread to continue.",
       });
-      expect(JSON.parse(rows[2]!.data)).toEqual({
+      expect(JSON.parse(rows[1]!.data)).toEqual({
         reason: "host-daemon-restarted",
       });
     });
