@@ -3,6 +3,7 @@ import type {
   HostDaemonOnlineRpcRequestMessage,
   HostDaemonOnlineRpcResponseMessage,
 } from "@bb/host-daemon-contract";
+import { AgentRuntimeRecoveryError } from "@bb/agent-runtime";
 import { WorkspaceError } from "@bb/host-workspace";
 import {
   encodeClientTurnRequestIdNumber,
@@ -45,7 +46,7 @@ type ThreadStartCommand = Extract<HostDaemonCommand, { type: "thread.start" }>;
 type TurnSubmitCommand = Extract<HostDaemonCommand, { type: "turn.submit" }>;
 
 interface RunRouterCommandArgs {
-  command: HostDaemonCommand;
+  command: HostDaemonOnlineRpcRequestMessage["command"];
   requestId: string;
   router: CommandRouter;
 }
@@ -61,6 +62,7 @@ interface CreateTurnSubmitCommandArgs {
 
 interface CreateRouterArgs {
   logger?: CommandRouterOptions["logger"];
+  listModels?: CommandRouterOptions["listModels"];
   resolveInteractiveRequest?: CommandRouterOptions["resolveInteractiveRequest"];
   runtimeManager?: RuntimeManager;
 }
@@ -85,6 +87,7 @@ function createRouter(
     fetchProjectAttachment: unexpectedProjectAttachmentFetch,
     fetchPluginHostArtifact: fetchDispatchTestArtifact,
     ...unexpectedProviderMaintenance,
+    ...(args.listModels === undefined ? {} : { listModels: args.listModels }),
     logger: {
       debug: () => undefined,
       warn: () => undefined,
@@ -253,6 +256,96 @@ describe("CommandRouter", () => {
       errorMessage: "Workspace provisioning was cancelled",
     });
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("does not warn for a typed auth_required model-list failure", async () => {
+    const harness = createHarness({ workspacePath: "/tmp/env-router" });
+    const logger = {
+      debug: vi.fn(),
+      warn: vi.fn(),
+    };
+    const authMessage = "ACP agent is not authenticated.";
+    const router = createRouter(harness, {
+      logger,
+      listModels: async () => {
+        // What `@bb/agent-runtime` throws when an ACP bridge rejects the
+        // model probe with a typed `authRequired` recovery hint.
+        throw new AgentRuntimeRecoveryError({
+          code: "auth_required",
+          message: authMessage,
+          recovery: {
+            kind: "authRequired",
+            message: authMessage,
+            providerId: "acp-cursor",
+            retryable: false,
+          },
+          cause: new Error("Authentication required."),
+        });
+      },
+    });
+
+    const response = await runRouterCommand({
+      command: {
+        type: "provider.list_models",
+        providerId: "acp-cursor",
+        bridgeLaunch: DISPATCH_TEST_BRIDGE_LAUNCH,
+      },
+      requestId: "auth-required-model-list",
+      router,
+    });
+
+    // The typed outcome still reaches the server intact.
+    expect(response).toMatchObject({
+      ok: false,
+      commandType: "provider.list_models",
+      errorCode: "auth_required",
+      errorMessage: authMessage,
+    });
+    // Only the duplicate warn is silenced; the debug accounting fires.
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandType: "provider.list_models",
+        errorCode: "auth_required",
+        ok: false,
+      }),
+      "Online host RPC",
+    );
+  });
+
+  it("still warns for an unclassified model-list failure", async () => {
+    const harness = createHarness({ workspacePath: "/tmp/env-router" });
+    const logger = {
+      debug: vi.fn(),
+      warn: vi.fn(),
+    };
+    const router = createRouter(harness, {
+      logger,
+      listModels: async () => {
+        throw new Error("model list command crashed");
+      },
+    });
+
+    const response = await runRouterCommand({
+      command: {
+        type: "provider.list_models",
+        providerId: "acp-cursor",
+        bridgeLaunch: DISPATCH_TEST_BRIDGE_LAUNCH,
+      },
+      requestId: "unclassified-model-list",
+      router,
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      errorCode: "command_failed",
+      errorMessage: "model list command crashed",
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      { type: "provider.list_models", err: expect.any(Error) },
+      "online host RPC failed",
+    );
   });
 
   it("orders turn.submit after an in-flight environment destroy", async () => {
