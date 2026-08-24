@@ -93,6 +93,8 @@ import {
   acpSessionForkResultSchema,
   acpSessionNewResultSchema,
   acpSessionNotificationParamsSchema,
+  acpAgentMessageChunkUpdateSchema,
+  extractAcpContentText,
   acpUsageUpdateSchema,
   type AcpConfigStateResult,
   type AcpSessionModels,
@@ -162,6 +164,13 @@ interface AcpThreadSession {
   policy: AcpSessionPolicy;
   pendingInstructions: string | undefined;
   activePromptKind: "turn" | "compaction" | null;
+  /**
+   * Agent message text streamed during the compaction maintenance prompt.
+   * Some agents (omp) report a failed `/compact` as an ordinary agent
+   * message and still answer `end_turn`, so the prompt result alone cannot
+   * tell a shrunk context from a no-op.
+   */
+  compactionAgentMessage: string;
   queuedInputs: AcpPendingTurnInput[];
   promptRequestPending: boolean;
   cancelRequested: boolean;
@@ -1704,6 +1713,7 @@ async function startAgentSession(
     },
     pendingInstructions: params.instructions,
     activePromptKind: null,
+    compactionAgentMessage: "",
     queuedInputs: [],
     promptRequestPending: false,
     cancelRequested: false,
@@ -2088,11 +2098,28 @@ function runTurn(
   })();
 }
 
+const ACP_COMPACTION_NOOP_MESSAGES: Record<string, true> = {
+  "Compaction failed: Nothing to compact (session too small)": true,
+  "Compaction failed: Already compacted": true,
+};
+
+function compactionOutcomeForEndTurn(
+  agentMessage: string,
+): Record<string, unknown> {
+  const text = agentMessage.trim();
+  if (!text.startsWith("Compaction failed:")) {
+    return { status: "completed" };
+  }
+  return ACP_COMPACTION_NOOP_MESSAGES[text] === true
+    ? { status: "skipped", detail: text }
+    : { status: "failed", error: text };
+}
 function startCompaction(
   session: AcpThreadSession,
   pending: AcpPendingTurnInput,
 ): void {
   session.activePromptKind = "compaction";
+  session.compactionAgentMessage = "";
   emitForSession(session, ACP_COMPACTION_STARTED_METHOD, {
     threadId: session.bbThreadId,
   });
@@ -2115,7 +2142,7 @@ function startCompaction(
     .then((result) => {
       finish(
         result.stopReason === "end_turn"
-          ? { status: "completed" }
+          ? compactionOutcomeForEndTurn(session.compactionAgentMessage)
           : result.stopReason === "cancelled"
             ? { status: "interrupted" }
             : {
@@ -2228,6 +2255,15 @@ function handleAgentNotification(
   }
   if (parsed.data.sessionId !== session.providerThreadId) {
     return;
+  }
+  if (session.activePromptKind === "compaction") {
+    const chunk = acpAgentMessageChunkUpdateSchema.safeParse(
+      parsed.data.update,
+    );
+    if (chunk.success) {
+      session.compactionAgentMessage +=
+        extractAcpContentText(chunk.data.content) ?? "";
+    }
   }
   emitForSession(session, ACP_UPDATE_METHOD, update);
 }

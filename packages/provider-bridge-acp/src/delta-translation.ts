@@ -912,14 +912,31 @@ export function createAcpDeltaTranslator(
           return [];
         }
         const status = params.data.status;
+        // A skipped compaction is a clean no-op (nothing to shrink), so its
+        // turn ends completed with the agent's reason surfaced as a warning —
+        // but like a failed or interrupted one it must never report
+        // `thread/compacted`, which only a genuine compaction earns.
+        const turnStatus: ThreadEventTurnStatus =
+          status === "skipped" ? "completed" : status;
         return [
-          ...flushOpenTurnWork(context, status),
+          ...flushOpenTurnWork(context, itemStatusForTurnStatus(turnStatus)),
           ...(status === "completed"
             ? ([{ kind: "context.compacted" }] as ThreadDelta[])
             : []),
+          ...(status === "skipped"
+            ? ([
+                {
+                  kind: "provider.warning",
+                  category: "compaction-skipped",
+                  summary: "Context compaction skipped",
+                  details: params.data.detail,
+                  vouchedTurn: true,
+                },
+              ] as ThreadDelta[])
+            : []),
           {
             kind: "turn.boundary",
-            status,
+            status: turnStatus,
             ...(status === "failed"
               ? { error: { message: params.data.error } }
               : {}),

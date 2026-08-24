@@ -433,7 +433,13 @@ async function handlePrompt(message) {
   }
 
   if (text === "/compact") {
-    // OpenCode treats this exact prompt as a provider-local control.
+    // OpenCode treats this exact prompt as a provider-local control. omp
+    // instead runs the command and reports a failure as an ordinary agent
+    // message while still answering end_turn (get-bb/bb#2290).
+    const compactMessage = process.env.FAKE_ACP_COMPACT_AGENT_MESSAGE;
+    if (compactMessage !== undefined) {
+      notifyUpdate(messageChunk(compactMessage));
+    }
   } else if (text.includes("request-external-directory-permission")) {
     // opencode's external_directory permission: the running edit tool asks
     // with the generic kind "other", a bare directory title, and

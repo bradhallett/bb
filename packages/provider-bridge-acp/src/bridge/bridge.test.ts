@@ -2378,6 +2378,57 @@ describe("acp bridge", () => {
     expect(threadEventsOfType("thread/compacted")).toEqual([]);
   });
 
+  it("fails the compaction turn when the agent reports the failure in an end-turn message", async () => {
+    const { providerThreadId } = await startThread({
+      envVars: {
+        FAKE_ACP_COMPACT_AGENT_MESSAGE:
+          "Compaction failed: summary model rejected the request",
+      },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: compactCommandInput(),
+    });
+    expect((await waitForResponse(turnId)).error).toBeUndefined();
+
+    // omp answers end_turn even when its /compact handler failed and said so
+    // in an ordinary agent message; that text must fail the turn instead of
+    // the end_turn being read as a shrunk context (#2290).
+    const completed = await waitForTurnCompleted();
+    expect(completed).toMatchObject({
+      status: "failed",
+      error: {
+        message: "Compaction failed: summary model rejected the request",
+      },
+    });
+    expect(threadEventsOfType("thread/compacted")).toEqual([]);
+  });
+
+  it("completes a no-op compaction turn without reporting a compacted context", async () => {
+    const { providerThreadId } = await startThread({
+      envVars: {
+        FAKE_ACP_COMPACT_AGENT_MESSAGE:
+          "Compaction failed: Nothing to compact (session too small)",
+      },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: compactCommandInput(),
+    });
+    expect((await waitForResponse(turnId)).error).toBeUndefined();
+
+    // A small session has nothing to compact: the turn ends cleanly with the
+    // agent's reason surfaced as a warning, and no `thread/compacted`.
+    const completed = await waitForTurnCompleted();
+    expect(completed).toMatchObject({ status: "completed" });
+    expect(threadEventsOfType("thread/compacted")).toEqual([]);
+    expect(threadEventsOfType("provider/warning").at(-1)).toMatchObject({
+      category: "compaction-skipped",
+      summary: "Context compaction skipped",
+      details: "Compaction failed: Nothing to compact (session too small)",
+    });
+  });
+
   it("accepts turn input only after the prompt carrying it goes out", async () => {
     const { providerThreadId } = await startThread();
     const turnId = sendTurnRequest("turn/start", providerThreadId, {
