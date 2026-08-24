@@ -1,5 +1,13 @@
-import { createProviderVisibilityMetadata, getStringProperty, isRecord } from "@bb/provider-bridge-protocol/bridge-kit";
-import type { JsonRpcMessage, ProviderRawEventDescription, ProviderVisibilityMetadata } from "@bb/provider-bridge-protocol/bridge-kit";
+import {
+  createProviderVisibilityMetadata,
+  getStringProperty,
+  isRecord,
+} from "@bb/provider-bridge-protocol/bridge-kit";
+import type {
+  JsonRpcMessage,
+  ProviderRawEventDescription,
+  ProviderVisibilityMetadata,
+} from "@bb/provider-bridge-protocol/bridge-kit";
 import {
   ACP_FS_WRITE_METHOD,
   ACP_TURN_COMPLETED_METHOD,
@@ -35,6 +43,21 @@ const NOISE_ACP_UPDATE_KINDS = new Set<string>([
   "config_option_update",
   "session_info_update",
 ]);
+
+/**
+ * Whether a session update carries agent work: everything BB normalizes
+ * except `usage_update`, which rides along with work without being any. The
+ * ACP bridge uses this to vouch a turn for updates that arrive with no
+ * prompt in flight (agent-initiated turns); deriving it from the normalized
+ * set keeps a future update kind from being "work" in one place and "noise"
+ * in the other.
+ */
+export function isAgentWorkUpdateKind(sessionUpdate: string): boolean {
+  return (
+    sessionUpdate !== "usage_update" &&
+    NORMALIZED_ACP_UPDATE_KINDS.has(sessionUpdate)
+  );
+}
 
 interface AcpMethodRawEvent {
   kind: "method";

@@ -13,7 +13,10 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStandaloneBuiltinCompactCommandInput } from "@bb/domain";
 import type { DynamicTool, ReasoningLevel } from "@bb/domain";
-import { PROVIDER_BRIDGE_PROTOCOL_VERSION, THREAD_DELTA_NOTIFICATION_METHOD } from "@bb/provider-bridge-protocol";
+import {
+  PROVIDER_BRIDGE_PROTOCOL_VERSION,
+  THREAD_DELTA_NOTIFICATION_METHOD,
+} from "@bb/provider-bridge-protocol";
 import {
   assembleCapturedThreadEvents,
   captureBridgeJsonRpcOutput,
@@ -358,9 +361,7 @@ function deltaKindsOf(message: BridgeJsonRpcOutputMessage): string[] {
   if (message.method !== THREAD_DELTA_NOTIFICATION_METHOD) {
     return [];
   }
-  const params = message.params as
-    | { deltas?: { kind?: string }[] }
-    | undefined;
+  const params = message.params as { deltas?: { kind?: string }[] } | undefined;
   return (params?.deltas ?? []).map((delta) => delta.kind ?? "");
 }
 
@@ -1429,6 +1430,118 @@ describe("acp bridge", () => {
 
       expect(threadEventsOfType("turn/started")).toHaveLength(1);
       expect(threadEventsOfType("turn/completed")).toHaveLength(1);
+    });
+
+    it("settles a vouched turn when the agent process exits mid-turn", async () => {
+      // Long quiet window: only the agent's exit may close the turn here.
+      __setSpontaneousTurnIdleTimeoutForTests(60_000);
+      const { providerThreadId } = await startThread({
+        envVars: { FAKE_ACP_SPONTANEOUS_EXIT_AFTER: "120" },
+      });
+      const turnId = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "spontaneous-stream:2", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+      await waitFor(
+        () =>
+          agentMessageTexts().some((t) => t.includes("spontaneous:1"))
+            ? true
+            : undefined,
+        "spontaneous stream",
+      );
+
+      // The agent dies with the vouched turn still open: the turn must reach
+      // a terminal state (no eternal "working") and the exit must surface.
+      await waitFor(
+        () =>
+          threadEventsOfType("turn/completed").length >= 2 &&
+          notifications("error").length > 0
+            ? true
+            : undefined,
+        "vouched turn settled after agent exit",
+      );
+
+      expect(threadEventsOfType("turn/started")).toHaveLength(2);
+      const completed = threadEventsOfType("turn/completed");
+      expect(completed).toHaveLength(2);
+      // The settling error closes the vouched turn as failed.
+      expect(completed[1]).toMatchObject({ status: "failed" });
+      // The session is gone; a stop for it settles without error.
+      startedProviderThreadIds.pop();
+    });
+
+    it("settles a vouched turn and still surfaces the error when a prompt fails while it is open", async () => {
+      __setSpontaneousTurnIdleTimeoutForTests(60_000);
+      const { providerThreadId } = await startThread();
+      const first = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "spontaneous-stream:2", mentions: [] }],
+      });
+      await waitForResponse(first);
+      await waitForTurnCompleted();
+      await waitFor(
+        () =>
+          agentMessageTexts().some((t) => t.includes("spontaneous:1"))
+            ? true
+            : undefined,
+        "spontaneous stream complete",
+      );
+
+      // The quiet window is still running, so the vouched turn is open when
+      // this prompt rejects: it settles first, then the failure surfaces.
+      const failing = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "prompt-error", mentions: [] }],
+      });
+      await waitForResponse(failing);
+      await waitFor(
+        () =>
+          threadEventsOfType("turn/completed").length >= 3 &&
+          notifications("error").length > 0
+            ? true
+            : undefined,
+        "vouched turn settled and prompt failure surfaced",
+      );
+
+      expect(threadEventsOfType("turn/started")).toHaveLength(3);
+      const completed = threadEventsOfType("turn/completed");
+      expect(completed).toHaveLength(3);
+      // The vouched turn closed cleanly before the new turn; the failing
+      // prompt's own turn carries the failure.
+      expect(completed[1]).toMatchObject({ status: "completed" });
+      expect(completed[2]).toMatchObject({ status: "failed" });
+      expect(agentMessageTexts().join("")).toContain(
+        "spontaneous:0spontaneous:1",
+      );
+    });
+
+    it("answers a permission request raised inside a vouched turn (full mode)", async () => {
+      __setSpontaneousTurnIdleTimeoutForTests(60_000);
+      const { providerThreadId } = await startThread({
+        envVars: { FAKE_ACP_SPONTANEOUS_PERMISSION: "1" },
+      });
+      const turnId = sendTurnRequest("turn/start", providerThreadId, {
+        input: [{ type: "text", text: "spontaneous-stream:2", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      // The agent asks for permission mid vouched turn and reports the
+      // outcome it received as a message.
+      await waitFor(
+        () =>
+          agentMessageTexts().some((t) => t.includes("spontaneous-permission:"))
+            ? true
+            : undefined,
+        "spontaneous permission outcome",
+      );
+
+      // Full mode auto-allows inside a prompted turn; a vouched turn is real
+      // work and must get the same answer, not an auto-cancel.
+      const outcome = agentMessageTexts()
+        .find((t) => t.includes("spontaneous-permission:"))
+        ?.replace(/^.*spontaneous-permission:/, "");
+      expect(outcome).toContain('"optionId":"yes"');
+      expect(outcome).not.toContain("cancelled");
     });
   });
 

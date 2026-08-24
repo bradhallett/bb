@@ -56,6 +56,14 @@
  *                              count model-discovery spawns in cache/TTL tests)
  * - FAKE_ACP_PROMPT_LOG      → append one JSON-encoded prompt text per request
  * - FAKE_ACP_PROMPT_ERROR=1  → reject every session/prompt request
+ * - FAKE_ACP_SPONTANEOUS_EXIT_AFTER=<ms>
+ *                            → after a "spontaneous-stream" prompt's unsolicited
+ *                              chunks, exit (code 3) this long after the last
+ *                              one: the agent dies mid agent-initiated turn
+ * - FAKE_ACP_SPONTANEOUS_PERMISSION=1
+ *                            → after a "spontaneous-stream" prompt's unsolicited
+ *                              chunks, raise session/request_permission with no
+ *                              prompt in flight and report the outcome chosen
  * - FAKE_ACP_COMPACT_STOP_REASON
  *                            → stop reason returned for /compact
  */
@@ -85,7 +93,9 @@ const authMethods = (process.env.FAKE_ACP_AUTH_METHODS ?? "")
 const authOptional = process.env.FAKE_ACP_AUTH_OPTIONAL === "1";
 const sessionNewError = process.env.FAKE_ACP_SESSION_NEW_ERROR;
 const exitOnSessionNew = process.env.FAKE_ACP_EXIT_ON_SESSION_NEW;
-const sessionNewDelayMs = Number(process.env.FAKE_ACP_SESSION_NEW_DELAY_MS ?? "0");
+const sessionNewDelayMs = Number(
+  process.env.FAKE_ACP_SESSION_NEW_DELAY_MS ?? "0",
+);
 const updatesWithSessionResponse =
   process.env.FAKE_ACP_UPDATES_WITH_SESSION_RESPONSE === "1";
 const ignoreCancel = process.env.FAKE_ACP_IGNORE_CANCEL === "1";
@@ -233,7 +243,11 @@ function configState() {
 }
 
 function requireAuthenticated(message) {
-  if (authMethods.length === 0 || authOptional || authenticatedMethod !== null) {
+  if (
+    authMethods.length === 0 ||
+    authOptional ||
+    authenticatedMethod !== null
+  ) {
     return true;
   }
   // ACP's reserved auth-required error: code -32000 with this message.
@@ -420,6 +434,16 @@ async function handlePrompt(message) {
     return;
   } else if (text.includes("die")) {
     process.exit(7);
+  } else if (text.includes("prompt-error")) {
+    // Reject this one prompt in-protocol: the bridge must settle whatever is
+    // still open and then surface the failure.
+    activePromptId = null;
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      error: { code: -32000, message: "Fake spontaneous-follow-up failure" },
+    });
+    return;
   } else if (text.includes("slow")) {
     notifyUpdate(messageChunk(`echo:${text}`));
     await sleep(300);
@@ -468,6 +492,44 @@ async function handlePrompt(message) {
         );
       }
     }, 40);
+    const exitAfterMs = Number(
+      process.env.FAKE_ACP_SPONTANEOUS_EXIT_AFTER ?? "0",
+    );
+    if (exitAfterMs > 0) {
+      // The agent dies mid agent-initiated turn (e.g. a crashed agent
+      // process) with the vouched turn still open.
+      setTimeout(() => process.exit(3), 40 + 60 * chunks + exitAfterMs);
+    }
+    if (process.env.FAKE_ACP_SPONTANEOUS_PERMISSION === "1") {
+      // An agent-initiated tool call that needs approval while no prompt is
+      // in flight; the agent reports the outcome it received as a message.
+      setTimeout(
+        () => {
+          void requestClient("session/request_permission", {
+            sessionId: activeSessionId,
+            toolCall: {
+              toolCallId: "spontaneous-tool-1",
+              title: "spontaneous write",
+              kind: "execute",
+              rawInput: { command: "echo hi" },
+            },
+            options: [
+              { optionId: "yes", name: "Allow", kind: "allow_once" },
+              { optionId: "no", name: "Deny", kind: "reject_once" },
+            ],
+          }).then((response) => {
+            notifyUpdate(
+              messageChunk(
+                `spontaneous-permission:${JSON.stringify(
+                  response?.outcome ?? null,
+                )}`,
+              ),
+            );
+          });
+        },
+        40 + 60 * chunks + 60,
+      );
+    }
   } else if (text.includes("spontaneous-noise")) {
     // Unsolicited non-work update: must not open a turn.
     setTimeout(() => {

@@ -9,12 +9,37 @@
  * workspace write policy on client `fs/write_text_file` requests.
  */
 
-import { isStandaloneBuiltinCompactCommand, pendingInteractionResolutionSchema, reasoningEffortsForLevels } from "@bb/domain";
+import {
+  isStandaloneBuiltinCompactCommand,
+  pendingInteractionResolutionSchema,
+  reasoningEffortsForLevels,
+} from "@bb/domain";
 import type { AvailableModel, PromptInput, ReasoningLevel } from "@bb/domain";
 import { acpLaunchSpecSchema, type AcpLaunchSpec } from "../launch-spec.js";
-import { BRIDGE_INBOUND_REQUEST_METHODS, BRIDGE_JSON_RPC_ERRORS, BRIDGE_NOTIFICATION_METHODS, PROVIDER_BRIDGE_PROTOCOL_VERSION, THREAD_DELTA_GRAMMAR_V3, THREAD_DELTA_NOTIFICATION_METHOD } from "@bb/provider-bridge-protocol";
-import type { InitializeResult, ThreadDelta } from "@bb/provider-bridge-protocol";
-import { BridgeRecoveryError, bridgeRequestEnvelopeSchema, createBridgeIo, createBridgeLineHandler, decodeBridgeJsonRpcResponse, decodeToolCallResponsePayload, experimental_defineProviderBridge, mimeTypeFromExtension, runBridgeRequest, withoutBridgeRuntimeEnv } from "@bb/provider-bridge-protocol/bridge-kit";
+import {
+  BRIDGE_INBOUND_REQUEST_METHODS,
+  BRIDGE_JSON_RPC_ERRORS,
+  BRIDGE_NOTIFICATION_METHODS,
+  PROVIDER_BRIDGE_PROTOCOL_VERSION,
+  THREAD_DELTA_GRAMMAR_V3,
+  THREAD_DELTA_NOTIFICATION_METHOD,
+} from "@bb/provider-bridge-protocol";
+import type {
+  InitializeResult,
+  ThreadDelta,
+} from "@bb/provider-bridge-protocol";
+import {
+  BridgeRecoveryError,
+  bridgeRequestEnvelopeSchema,
+  createBridgeIo,
+  createBridgeLineHandler,
+  decodeBridgeJsonRpcResponse,
+  decodeToolCallResponsePayload,
+  experimental_defineProviderBridge,
+  mimeTypeFromExtension,
+  runBridgeRequest,
+  withoutBridgeRuntimeEnv,
+} from "@bb/provider-bridge-protocol/bridge-kit";
 import type { BridgeJsonRpcResponse } from "@bb/provider-bridge-protocol/bridge-kit";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -49,6 +74,7 @@ import {
   type AcpDeltaTranslator,
 } from "../delta-translation.js";
 import { resolveAcpDialect, type AcpDialect } from "../dialect.js";
+import { isAgentWorkUpdateKind } from "../visibility.js";
 import type { AcpMaintenanceDialect } from "./provider-maintenance.js";
 import {
   buildAcpPermissionInteractionPayload,
@@ -167,10 +193,12 @@ interface AcpThreadSession {
   policy: AcpSessionPolicy;
   pendingInstructions: string | undefined;
   /**
-   * Which agent prompt is in flight for this bb turn: an ordinary `"turn"`,
-   * the provider-local `"compaction"` maintenance prompt, or none.
+   * Which agent prompt is in flight for this bb thread: an ordinary `"turn"`,
+   * the provider-local `"compaction"` maintenance prompt, an `"agent"` turn
+   * the bridge vouched for agent-initiated output with no prompt in flight
+   * (OMP async-job delivery), or none.
    */
-  activePromptKind: "turn" | "compaction" | null;
+  activePromptKind: "turn" | "compaction" | "agent" | null;
   queuedInputs: AcpPendingTurnInput[];
   /** True while a session/prompt request is outstanding. */
   promptRequestPending: boolean;
@@ -182,12 +210,7 @@ interface AcpThreadSession {
   stopping: boolean;
   /** Resolves when the in-flight turn or maintenance prompt fully settles. */
   turnSettled: Promise<void> | undefined;
-  /**
-   * True while a bridge-opened turn carries agent-initiated output (OMP
-   * async-job delivery): ACP brackets no turn for it, so the bridge vouches
-   * the lifecycle itself (provider-bridge-protocol.md, turn lifecycle rule 3).
-   */
-  spontaneousTurnOpen: boolean;
+  /** Quiet-window timer armed while an `"agent"` turn is open; see below. */
   spontaneousQuietTimer: NodeJS.Timeout | undefined;
   pendingPermissions: Set<PendingAcpPermission>;
   cursorMcpApproval: CursorMcpApproval | undefined;
@@ -336,12 +359,14 @@ function emitForSession(
 }
 
 function emitSessionError(session: AcpThreadSession, message: string): void {
-  // Settle any open turn first: every accepted turn reaches exactly one
-  // terminal state, and settlement events precede the error signal. With no
-  // prompt in flight the error stays a runtime notification — a settling
-  // error delta on an idle thread would surface a diagnostic for a turn bb
-  // never accepted. `activePromptKind` mirrors the turn the bridge itself
-  // opened with `turn.open`.
+  // Settle any open turn first: every turn reaches exactly one terminal
+  // state, and settlement events precede the error signal. A vouched
+  // `"agent"` turn is no exception — the agent dying or failing mid-turn
+  // must close it, or the thread hangs "working" forever. With nothing in
+  // flight the error stays a runtime notification — a settling error delta
+  // on an idle thread would surface a diagnostic for a turn bb never
+  // accepted. `activePromptKind` mirrors the turn the bridge itself opened
+  // with `turn.open`.
   if (session.activePromptKind !== null) {
     emitForSession(session, "error", {
       threadId: session.bbThreadId,
@@ -1450,10 +1475,15 @@ function handlePermissionRequest(
     return;
   }
 
+  // An ask with no work in flight is spurious and never reaches an approval
+  // surface. A vouched "agent" turn is real work all the same: full mode
+  // auto-allows it, every other mode forwards to the user — exactly like a
+  // prompted turn.
   if (
     session.stopping ||
     session.cancelRequested ||
-    session.activePromptKind !== "turn"
+    (session.activePromptKind !== "turn" &&
+      session.activePromptKind !== "agent")
   ) {
     responder.result({ outcome: { outcome: "cancelled" } });
     return;
@@ -1688,7 +1718,7 @@ function liveSessionForThread(
 }
 
 function removeSession(session: AcpThreadSession): void {
-  clearSpontaneousTurn(session);
+  clearSpontaneousQuietTimer(session);
   if (sessionsByBbThreadId.get(session.bbThreadId) === session) {
     sessionsByBbThreadId.delete(session.bbThreadId);
   }
@@ -1855,7 +1885,6 @@ async function startAgentSession(
     pendingLoadUsageUpdate: undefined,
     stopping: false,
     turnSettled: undefined,
-    spontaneousTurnOpen: false,
     spontaneousQuietTimer: undefined,
     pendingPermissions: new Set(),
     cursorMcpApproval: undefined,
@@ -2033,7 +2062,10 @@ async function startAgentSession(
     sendThreadDeltas(bbThreadId, [{ kind: "session.reset" }]);
     session.deferStartEmit = undefined;
     for (const deferred of deferredEmits) {
-      if (deferred.sessionId !== undefined && deferred.sessionId !== sessionId) {
+      if (
+        deferred.sessionId !== undefined &&
+        deferred.sessionId !== sessionId
+      ) {
         continue;
       }
       emitForSession(session, deferred.method, deferred.params);
@@ -2060,8 +2092,6 @@ async function stopSession(session: AcpThreadSession): Promise<void> {
     "ACP session stopped before the steer was sent",
   );
   cancelPendingPermissions(session);
-  // An interrupt settles whatever work is open, vouched or prompted.
-  settleSpontaneousTurn(session, "cancelled");
 
   if (session.activePromptKind !== null && !session.connection.exited) {
     session.connection.notify("session/cancel", {
@@ -2096,6 +2126,9 @@ function settleInterruptedPrompt(session: AcpThreadSession): void {
       return;
     case "compaction":
       finishCompaction(session, { status: "interrupted" });
+      return;
+    case "agent":
+      settleAgentTurn(session, "cancelled");
       return;
     case null:
       return;
@@ -2215,7 +2248,7 @@ function runTurn(
   session: AcpThreadSession,
   firstInput: AcpPendingTurnInput,
 ): void {
-  settleSpontaneousTurn(session);
+  settleAgentTurn(session);
   session.activePromptKind = "turn";
   emitForSession(session, ACP_TURN_STARTED_METHOD, {
     threadId: session.bbThreadId,
@@ -2316,7 +2349,7 @@ function startCompaction(
   session: AcpThreadSession,
   pending: AcpPendingTurnInput,
 ): void {
-  settleSpontaneousTurn(session);
+  settleAgentTurn(session);
   session.activePromptKind = "compaction";
   emitForSession(session, ACP_COMPACTION_STARTED_METHOD, {
     threadId: session.bbThreadId,
@@ -2431,37 +2464,34 @@ function handleDialectRequest(
 // ---------------------------------------------------------------------------
 
 /**
- * Session updates that carry agent work. Arriving with no prompt in flight
- * they are an agent-initiated turn: ACP sends no turn bracket for it, so the
- * bridge opens one itself — the sanctioned shape for provider-internal
- * activity (provider-bridge-protocol.md, turn lifecycle rule 3). The next
- * bb-initiated turn settles a still-open one first, `thread/stop` interrupts
- * it, and a quiet window closes it as completed.
+ * A work update arriving with no prompt in flight is an agent-initiated
+ * turn: ACP sends no turn bracket for it, so the bridge vouches the
+ * lifecycle itself — the sanctioned shape for provider-internal activity
+ * (provider-bridge-protocol.md, turn lifecycle rule 3). The open turn lives
+ * in `activePromptKind: "agent"`, so every reader of that mirror (turn
+ * dispatch, permissions, error settlement, interrupts) already treats it as
+ * real work. It settles on every exit path: the quiet window closes it as
+ * completed, the next bb-initiated turn or compaction closes it first, a
+ * stop interrupts it, and the agent dying or failing closes it with the
+ * error. Non-work updates never open one; `user_message_chunk` stays noise,
+ * so a replayed result injection creates no phantom user row.
  */
-const AGENT_WORK_UPDATE_KINDS: Record<string, true> = {
-  agent_message_chunk: true,
-  agent_thought_chunk: true,
-  tool_call: true,
-  tool_call_update: true,
-  plan: true,
-};
-
-function clearSpontaneousTurn(session: AcpThreadSession): void {
-  session.spontaneousTurnOpen = false;
+function clearSpontaneousQuietTimer(session: AcpThreadSession): void {
   if (session.spontaneousQuietTimer !== undefined) {
     clearTimeout(session.spontaneousQuietTimer);
     session.spontaneousQuietTimer = undefined;
   }
 }
 
-function settleSpontaneousTurn(
+function settleAgentTurn(
   session: AcpThreadSession,
   stopReason: z.infer<typeof acpStopReasonSchema> = "end_turn",
 ): void {
-  if (!session.spontaneousTurnOpen) {
+  if (session.activePromptKind !== "agent") {
     return;
   }
-  clearSpontaneousTurn(session);
+  session.activePromptKind = null;
+  clearSpontaneousQuietTimer(session);
   emitForSession(session, ACP_TURN_COMPLETED_METHOD, {
     threadId: session.bbThreadId,
     stopReason,
@@ -2472,7 +2502,7 @@ function armSpontaneousQuietTimer(session: AcpThreadSession): void {
   clearTimeout(session.spontaneousQuietTimer);
   session.spontaneousQuietTimer = setTimeout(() => {
     session.spontaneousQuietTimer = undefined;
-    settleSpontaneousTurn(session);
+    settleAgentTurn(session);
   }, spontaneousTurnIdleTimeoutMs);
 }
 
@@ -2518,14 +2548,12 @@ function handleAgentNotification(
   }
   if (
     session.activePromptKind === null &&
-    AGENT_WORK_UPDATE_KINDS[parsed.data.update.sessionUpdate] === true
+    isAgentWorkUpdateKind(parsed.data.update.sessionUpdate)
   ) {
-    if (!session.spontaneousTurnOpen) {
-      session.spontaneousTurnOpen = true;
-      emitForSession(session, ACP_TURN_STARTED_METHOD, {
-        threadId: session.bbThreadId,
-      });
-    }
+    session.activePromptKind = "agent";
+    emitForSession(session, ACP_TURN_STARTED_METHOD, {
+      threadId: session.bbThreadId,
+    });
     armSpontaneousQuietTimer(session);
   }
   emitForSession(session, ACP_UPDATE_METHOD, update);
@@ -2884,7 +2912,12 @@ async function handleRequest(
         sendError(request.id, -32000, "No active ACP session");
         return;
       }
-      if (session.activePromptKind !== null) {
+      // A vouched "agent" turn is closed by the run below before the new one
+      // opens; only a prompted turn or compaction in flight blocks a start.
+      if (
+        session.activePromptKind !== null &&
+        session.activePromptKind !== "agent"
+      ) {
         sendError(request.id, -32000, "A turn is already active");
         return;
       }
