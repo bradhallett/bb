@@ -2429,6 +2429,60 @@ describe("acp bridge", () => {
     });
   });
 
+  it("keeps classifying a no-op compaction when the agent rewords its prose", async () => {
+    const { providerThreadId } = await startThread({
+      envVars: {
+        FAKE_ACP_COMPACT_AGENT_MESSAGE:
+          "compaction failed: nothing to compact — the session is still small",
+      },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: compactCommandInput(),
+    });
+    expect((await waitForResponse(turnId)).error).toBeUndefined();
+
+    // The no-op phrasing is the agent's own prose, not a contract
+    // (can1357/oh-my-pi#9786): a reworded, lowercased reason must still
+    // complete the turn as a skip instead of failing it as an error.
+    const completed = await waitForTurnCompleted();
+    expect(completed).toMatchObject({ status: "completed" });
+    expect(threadEventsOfType("thread/compacted")).toEqual([]);
+    expect(threadEventsOfType("provider/warning").at(-1)).toMatchObject({
+      category: "compaction-skipped",
+      summary: "Context compaction skipped",
+      details:
+        "compaction failed: nothing to compact — the session is still small",
+    });
+  });
+
+  it("fails the compaction turn when the failure report is reworded or preceded by other text", async () => {
+    const { providerThreadId } = await startThread({
+      envVars: {
+        FAKE_ACP_COMPACT_AGENT_MESSAGE:
+          "Tried shrinking the context.\nCompaction failed: session is locked by another compaction",
+      },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: compactCommandInput(),
+    });
+    expect((await waitForResponse(turnId)).error).toBeUndefined();
+
+    // A failure sentence buried after other streamed text must still fail
+    // the turn; reading `end_turn` as success here would report a compacted
+    // context that never compacted.
+    const completed = await waitForTurnCompleted();
+    expect(completed).toMatchObject({
+      status: "failed",
+      error: {
+        message:
+          "Tried shrinking the context.\nCompaction failed: session is locked by another compaction",
+      },
+    });
+    expect(threadEventsOfType("thread/compacted")).toEqual([]);
+  });
+
   it("accepts turn input only after the prompt carrying it goes out", async () => {
     const { providerThreadId } = await startThread();
     const turnId = sendTurnRequest("turn/start", providerThreadId, {

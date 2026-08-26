@@ -2098,19 +2098,17 @@ function runTurn(
   })();
 }
 
-const ACP_COMPACTION_NOOP_MESSAGES: Record<string, true> = {
-  "Compaction failed: Nothing to compact (session too small)": true,
-  "Compaction failed: Already compacted": true,
-};
+const COMPACTION_FAILURE_PATTERN = /\bcompaction failed\b/i;
+const COMPACTION_NOOP_PATTERN = /\b(?:nothing to compact|already compacted)\b/i;
 
 function compactionOutcomeForEndTurn(
   agentMessage: string,
 ): Record<string, unknown> {
   const text = agentMessage.trim();
-  if (!text.startsWith("Compaction failed:")) {
+  if (!COMPACTION_FAILURE_PATTERN.test(text)) {
     return { status: "completed" };
   }
-  return ACP_COMPACTION_NOOP_MESSAGES[text] === true
+  return COMPACTION_NOOP_PATTERN.test(text)
     ? { status: "skipped", detail: text }
     : { status: "failed", error: text };
 }
