@@ -433,9 +433,7 @@ async function handlePrompt(message) {
   }
 
   if (text === "/compact") {
-    // OpenCode treats this exact prompt as a provider-local control. omp
-    // instead runs the command and reports a failure as an ordinary agent
-    // message while still answering end_turn (get-bb/bb#2290).
+    // OpenCode treats this exact prompt as a provider-local control.
     const compactMessage = process.env.FAKE_ACP_COMPACT_AGENT_MESSAGE;
     if (compactMessage !== undefined) {
       notifyUpdate(messageChunk(compactMessage));

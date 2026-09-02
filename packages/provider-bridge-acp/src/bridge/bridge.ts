@@ -164,12 +164,6 @@ interface AcpThreadSession {
   policy: AcpSessionPolicy;
   pendingInstructions: string | undefined;
   activePromptKind: "turn" | "compaction" | null;
-  /**
-   * Agent message text streamed during the compaction maintenance prompt.
-   * Some agents (omp) report a failed `/compact` as an ordinary agent
-   * message and still answer `end_turn`, so the prompt result alone cannot
-   * tell a shrunk context from a no-op.
-   */
   compactionAgentMessage: string;
   queuedInputs: AcpPendingTurnInput[];
   promptRequestPending: boolean;

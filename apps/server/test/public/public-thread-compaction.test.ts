@@ -161,9 +161,6 @@ describe("public thread compaction", () => {
         ({ command }) => command.type === "turn.submit",
       );
       expect(turnSubmitRequests).toHaveLength(1);
-      // The standalone builtin /compact mention rides the ordinary turn path
-      // to the provider-acp bridge, which runs it as the agent's own /compact
-      // maintenance prompt instead of model input.
       expect(turnSubmitRequests[0]?.command).toMatchObject({
         type: "turn.submit",
         threadId: thread.id,

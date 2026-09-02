@@ -2391,9 +2391,6 @@ describe("acp bridge", () => {
     });
     expect((await waitForResponse(turnId)).error).toBeUndefined();
 
-    // omp answers end_turn even when its /compact handler failed and said so
-    // in an ordinary agent message; that text must fail the turn instead of
-    // the end_turn being read as a shrunk context (#2290).
     const completed = await waitForTurnCompleted();
     expect(completed).toMatchObject({
       status: "failed",
@@ -2417,8 +2414,6 @@ describe("acp bridge", () => {
     });
     expect((await waitForResponse(turnId)).error).toBeUndefined();
 
-    // A small session has nothing to compact: the turn ends cleanly with the
-    // agent's reason surfaced as a warning, and no `thread/compacted`.
     const completed = await waitForTurnCompleted();
     expect(completed).toMatchObject({ status: "completed" });
     expect(threadEventsOfType("thread/compacted")).toEqual([]);
@@ -2442,9 +2437,6 @@ describe("acp bridge", () => {
     });
     expect((await waitForResponse(turnId)).error).toBeUndefined();
 
-    // The no-op phrasing is the agent's own prose, not a contract
-    // (can1357/oh-my-pi#9786): a reworded, lowercased reason must still
-    // complete the turn as a skip instead of failing it as an error.
     const completed = await waitForTurnCompleted();
     expect(completed).toMatchObject({ status: "completed" });
     expect(threadEventsOfType("thread/compacted")).toEqual([]);
@@ -2469,9 +2461,6 @@ describe("acp bridge", () => {
     });
     expect((await waitForResponse(turnId)).error).toBeUndefined();
 
-    // A failure sentence buried after other streamed text must still fail
-    // the turn; reading `end_turn` as success here would report a compacted
-    // context that never compacted.
     const completed = await waitForTurnCompleted();
     expect(completed).toMatchObject({
       status: "failed",

@@ -142,7 +142,6 @@ export const acpCompactionCompletedNotificationParamsSchema =
       .object({
         threadId: z.string().min(1),
         status: z.literal("skipped"),
-        /** The agent's own reason the compaction was a no-op. */
         detail: z.string().min(1),
       })
       .passthrough(),
