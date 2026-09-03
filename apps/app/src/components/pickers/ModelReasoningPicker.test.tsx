@@ -804,6 +804,7 @@ describe("ModelReasoningPicker", () => {
     fireEvent.change(search, { target: { value: "glm" } });
 
     fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
     expect(search.getAttribute("aria-activedescendant")).not.toBeNull();
     fireEvent.keyDown(search, { key: "Enter" });
     expect(onModelChange).toHaveBeenCalledWith("cursor/glm-5.3");
