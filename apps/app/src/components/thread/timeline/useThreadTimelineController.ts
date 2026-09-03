@@ -31,6 +31,7 @@ export interface UseThreadTimelineControllerResult {
   isLoadingOlderTimelineRows: boolean;
   loadOlderTimelineRows: () => Promise<void>;
   pendingTodos: ThreadTimelineResponse["pendingTodos"];
+  subagents: ThreadTimelineResponse["subagents"];
   timelineError: Error | null;
   timelineLoading: boolean;
   timelineRows: TimelineRow[];
@@ -204,6 +205,7 @@ export function useThreadTimelineController({
     isLoadingOlderTimelineRows,
     loadOlderTimelineRows,
     pendingTodos: latestTimeline?.pendingTodos ?? null,
+    subagents: latestTimeline?.subagents ?? null,
     timelineError,
     timelineLoading,
     timelineRows,

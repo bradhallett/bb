@@ -28,6 +28,7 @@ describe("parseCustomAcpAgents", () => {
         env: {},
         supportsManualCompaction: false,
         supportsPlan: false,
+        supportsSubagents: false,
       },
     ]);
   });
@@ -151,6 +152,7 @@ describe("customAcpAgentDefinition", () => {
           modelCli: { listArgs: [], primaryModels: [] },
           supportsManualCompaction: true,
           supportsPlan: true,
+          supportsSubagents: true,
         },
       ],
       reservedProviderIds: reserved,
@@ -168,6 +170,7 @@ describe("customAcpAgentDefinition", () => {
     });
     expect(definition.supportsManualCompaction).toBe(true);
     expect(definition.supportsPlan).toBe(true);
+    expect(definition.supportsSubagents).toBe(true);
     expect(definition.fork).toBe("none");
   });
 });
@@ -291,6 +294,7 @@ describe("acpProviderDeclaration", () => {
         env: {},
         supportsManualCompaction: false,
         supportsPlan: false,
+        supportsSubagents: false,
       }),
     );
 
@@ -332,5 +336,36 @@ describe("acpProviderDeclaration", () => {
       acpProviderDeclaration(customAcpAgentDefinition(planningCustom))
         .composerActions,
     ).toEqual(["plan"]);
+  });
+
+  it("declares subagent roster support only when the agent turns it on", () => {
+    const [rosterCustom] = parseCustomAcpAgents({
+      entries: [
+        {
+          id: "amp",
+          displayName: "Amp",
+          command: "amp",
+          supportsSubagents: true,
+        },
+      ],
+      reservedProviderIds: reserved,
+    }).agents;
+    if (rosterCustom === undefined) {
+      throw new Error("expected the agent to parse");
+    }
+
+    const declaring = acpProviderDeclaration(
+      customAcpAgentDefinition(rosterCustom),
+    );
+    expect(declaring.experimental_bridgeOptions).toMatchObject({
+      acpSubagents: true,
+    });
+    expect(declaring.capabilities.supportsSubagents).toBe(true);
+
+    for (const agent of KNOWN_ACP_AGENTS) {
+      const declaration = acpProviderDeclaration(agent);
+      expect(declaration.capabilities.supportsSubagents).toBeUndefined();
+      expect(declaration.experimental_bridgeOptions?.acpSubagents).toBeUndefined();
+    }
   });
 });

@@ -20,6 +20,7 @@ function createInteraction(
     status: "pending" as const,
     resolution: null,
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
   };

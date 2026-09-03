@@ -140,6 +140,7 @@ async function scriptedEchoDispatchLaunch(
       supportsThreadArchive: true,
       supportsThreadRename: true,
       fork: "checkpoint",
+      supportsSubagents: false,
     },
   };
 }

@@ -45,6 +45,7 @@ function makeTimelineResponse(): ThreadTimelineResponse {
     activeBackgroundCommands: [],
     pendingTodos: null,
     goal: null,
+    subagents: null,
     modelFallback: null,
     maxSeq: 0,
     timelinePage: {

@@ -49,6 +49,7 @@ const interaction: PluginPendingInteraction = {
   },
   resolution: null,
   statusReason: null,
+  agentLabel: null,
   createdAt: 1,
   expiresAt: 2,
   resolvedAt: null,

@@ -1559,6 +1559,7 @@ function buildThreadTimelineInternal(
       options.page.kind === "latest" ? timeline.activeBackgroundCommands : [],
     pendingTodos: timeline.pendingTodos,
     goal: timeline.goal,
+    subagents: timeline.subagents,
     modelFallback:
       options.page.kind === "latest" ? timeline.modelFallback : null,
     contextWindowUsage:

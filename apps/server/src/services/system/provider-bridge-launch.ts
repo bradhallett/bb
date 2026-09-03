@@ -20,6 +20,7 @@ export function resolveBridgeLaunchForProviderId(
     supportsServiceTier,
     supportsThreadArchive,
     supportsThreadRename,
+    supportsSubagents,
     permissionModes,
   } = registration.info.capabilities;
   const fork = registration.serverCapabilities.fork;
@@ -33,6 +34,7 @@ export function resolveBridgeLaunchForProviderId(
       supportsServiceTier,
       supportsThreadArchive,
       supportsThreadRename,
+      supportsSubagents,
       permissionModes: [...permissionModes],
       fork,
     },

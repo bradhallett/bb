@@ -166,6 +166,7 @@ beforeEach(() => {
     activeBackgroundCommands: [],
     pendingTodos: null,
     goal: null,
+    subagents: null,
     modelFallback: null,
     timelinePage: {
       kind: "latest",
@@ -240,6 +241,7 @@ describe("useThreadDetailBootstrap", () => {
       activeBackgroundCommands: [],
       pendingTodos: null,
       goal: null,
+      subagents: null,
       modelFallback: null,
       timelinePage: {
         kind: "latest",
@@ -495,6 +497,7 @@ describe("useThreadPendingInteractions", () => {
       providerRequestId: "request-1",
       status: "pending",
       statusReason: null,
+      agentLabel: null,
       createdAt: 1,
       resolvedAt: null,
       resolution: null,

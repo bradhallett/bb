@@ -405,6 +405,7 @@ describe("thread command dispatch", () => {
             supportsThreadArchive: false,
             supportsThreadRename: false,
             fork: "none",
+            supportsSubagents: false,
           },
         },
         requestId: nextClientRequestId(),
@@ -450,6 +451,7 @@ describe("thread command dispatch", () => {
         supportsThreadArchive: false,
         supportsThreadRename: false,
         fork: "none",
+        supportsSubagents: false,
       },
     });
     await expect(fs.readFile(artifactPath)).resolves.toEqual(bridgeBytes);
@@ -480,6 +482,7 @@ describe("thread command dispatch", () => {
         supportsThreadArchive: true,
         supportsThreadRename: false,
         fork: "none",
+        supportsSubagents: false,
       },
     };
     const expectedRuntimeLaunch = {
@@ -505,6 +508,7 @@ describe("thread command dispatch", () => {
         supportsThreadArchive: true,
         supportsThreadRename: false,
         fork: "none",
+        supportsSubagents: false,
       },
     };
 
@@ -595,6 +599,7 @@ describe("thread command dispatch", () => {
               supportsThreadArchive: false,
               supportsThreadRename: false,
               fork: "none",
+              supportsSubagents: false,
             },
           },
           instructions: "Be a helpful coding agent.",
@@ -633,6 +638,7 @@ describe("thread command dispatch", () => {
         supportsThreadArchive: false,
         supportsThreadRename: false,
         fork: "none",
+        supportsSubagents: false,
       },
     });
     expect(fetchPluginHostArtifact).toHaveBeenCalledTimes(1);

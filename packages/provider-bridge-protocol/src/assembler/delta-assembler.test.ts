@@ -1931,6 +1931,120 @@ describe("delta assembler extension kinds", () => {
   });
 });
 
+describe("delta assembler subagent roster", () => {
+  it("emits the roster snapshot as a thread-scoped event outside any turn", () => {
+    const assembler = createAssembler();
+    const events = assemble(assembler, {
+      kind: "thread.subagents",
+      agents: [
+        {
+          id: "agent-1",
+          label: "Scout",
+          state: "running",
+          summary: "Mapping the repository",
+          transcriptRef: "tr_agent_1",
+        },
+        {
+          id: "agent-2",
+          label: "Reviewer",
+          state: "idle",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+    expect(events).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [
+          {
+            id: "agent-1",
+            label: "Scout",
+            state: "running",
+            summary: "Mapping the repository",
+            transcriptRef: "tr_agent_1",
+          },
+          {
+            id: "agent-2",
+            label: "Reviewer",
+            state: "idle",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("replaces the roster on each snapshot instead of merging earlier agents", () => {
+    const assembler = createAssembler();
+    const first = assemble(assembler, {
+      kind: "thread.subagents",
+      agents: [
+        {
+          id: "agent-1",
+          label: "Scout",
+          state: "running",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+    const second = assemble(assembler, {
+      kind: "thread.subagents",
+      agents: [],
+    });
+    expect(first).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [
+          {
+            id: "agent-1",
+            label: "Scout",
+            state: "running",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      },
+    ]);
+    expect(second).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [],
+      },
+    ]);
+  });
+
+  it("keeps a roster snapshot thread-scoped while a turn is open", () => {
+    const assembler = createAssembler();
+    assemble(assembler, { kind: "turn.open" });
+    const events = assemble(assembler, {
+      kind: "thread.subagents",
+      agents: [],
+    });
+    expect(events).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [],
+      },
+    ]);
+    expect(assembler.getOpenTurnId(THREAD_ID)).toBeDefined();
+  });
+});
+
 describe("delta assembler background tasks and progress policy", () => {
   function createClockedAssembler(progressThrottleMs?: number) {
     let nowMs = 0;

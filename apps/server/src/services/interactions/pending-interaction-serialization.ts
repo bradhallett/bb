@@ -63,6 +63,7 @@ export function toPendingInteraction(
       id: row.id,
       threadId: row.threadId,
       turnId: row.turnId,
+      agentLabel: row.agentLabel,
       ...(row.originKind === "provider"
         ? {
             providerId: row.providerId,

@@ -153,6 +153,7 @@ describe("buildAcpSessionParams", () => {
           envVars: { BB_THREAD_ID: "thread-1" },
         },
         parameterizedModelPicker: false,
+        subagents: false,
         launchSpec: launchSpecFor({
           displayName: "Custom ACP",
           command: "custom-agent",
@@ -186,6 +187,7 @@ describe("buildAcpSessionParams", () => {
         cwd: "/workspace",
         options: { ...BASE_OPTIONS, model: "requested-model" },
         parameterizedModelPicker: false,
+        subagents: false,
         launchSpec: launchSpecFor({
           displayName: "Custom ACP",
           command: "custom-agent",
@@ -199,6 +201,26 @@ describe("buildAcpSessionParams", () => {
       agent: { command: "custom-agent", args: ["serve"] },
       modelSelection: { modelId: "requested-model" },
     });
+  });
+
+  it("carries the declared subagent roster gate through to the session", () => {
+    expect(
+      buildAcpSessionParams({
+        additionalWorkspaceWriteRoots: [],
+        cwd: "/workspace",
+        options: BASE_OPTIONS,
+        parameterizedModelPicker: false,
+        subagents: true,
+        launchSpec: launchSpecFor({
+          displayName: "Custom ACP",
+          command: "custom-agent",
+          args: ["serve"],
+          env: {},
+        }),
+        providerLabel: "acp-custom",
+        threadId: "thread-1",
+      }),
+    ).toMatchObject({ subagents: true });
   });
 
   it("pins the launch reasoning level only when the spec has a reasoning CLI", () => {
@@ -215,6 +237,7 @@ describe("buildAcpSessionParams", () => {
       providerLabel: "acp-custom",
       threadId: "thread-1",
       parameterizedModelPicker: false,
+      subagents: false,
     } as const;
 
     expect(
@@ -271,6 +294,7 @@ gemini-3.5-flash claude-sonnet-4 gpt-5-mini gemini-2.5-flash kimi-k3 kimi-k2.7-c
       dialectId: "cursor",
       options: { ...BASE_OPTIONS, ...options },
       parameterizedModelPicker: true,
+      subagents: false,
       launchSpec: launchSpecFor(cursorSpec),
       providerLabel: "acp-cursor",
       threadId: "thread-1",
@@ -373,6 +397,7 @@ gemini-3.5-flash claude-sonnet-4 gpt-5-mini gemini-2.5-flash kimi-k3 kimi-k2.7-c
       cwd: "/workspace",
       options: { ...BASE_OPTIONS, model: "custom/strong" },
       parameterizedModelPicker: false,
+      subagents: false,
       launchSpec: launchSpecFor({
         displayName: "Custom ACP",
         command: "custom-acp",
@@ -406,6 +431,7 @@ describe("buildAcpSessionParams skill instructions", () => {
       cwd: "/workspace",
       options: { ...BASE_OPTIONS, ...options },
       parameterizedModelPicker: false,
+      subagents: false,
       launchSpec: launchSpecFor({
         displayName: "Custom ACP",
         command: "custom-agent",

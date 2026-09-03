@@ -23,6 +23,7 @@ const BRIDGE_LAUNCH: HostDaemonBridgeLaunch = {
     supportsThreadArchive: false,
     supportsThreadRename: false,
     fork: "none",
+    supportsSubagents: false,
   },
 };
 

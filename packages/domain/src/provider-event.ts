@@ -325,6 +325,24 @@ const providerUnhandledEventSchema = z.object({
   parentToolCallId: z.string().optional(),
 });
 
+const threadSubagentStateValues = [
+  "running",
+  "idle",
+  "parked",
+  "aborted",
+] as const;
+export const threadSubagentStateSchema = z.enum(threadSubagentStateValues);
+export type ThreadSubagentState = z.infer<typeof threadSubagentStateSchema>;
+
+export const threadSubagentSchema = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  state: threadSubagentStateSchema,
+  summary: z.string().nullable(),
+  transcriptRef: z.string().nullable(),
+});
+export type ThreadSubagent = z.infer<typeof threadSubagentSchema>;
+
 const toolCallProgressEventSchema = z.object({
   type: z.literal("item/toolCall/progress"),
   threadId: z.string(),
@@ -681,6 +699,12 @@ const unscopedProviderEventSchema = z.discriminatedUnion("type", [
     providerThreadId: z.string(),
     kind: extensionKindSchema,
     payload: jsonValueSchema,
+  }),
+  z.object({
+    type: z.literal("thread/subagents/updated"),
+    threadId: z.string(),
+    providerThreadId: z.string(),
+    agents: z.array(threadSubagentSchema),
   }),
   z.object({
     type: z.literal("provider/warning"),

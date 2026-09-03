@@ -181,6 +181,7 @@ const pendingInteractionColumns: ExpectedColumn[] = [
   },
   { name: "plugin_id", type: "text", notNull: false, primaryKey: false },
   { name: "renderer_id", type: "text", notNull: false, primaryKey: false },
+  { name: "agent_label", type: "text", notNull: false, primaryKey: false },
   { name: "status", type: "text", notNull: true, primaryKey: false },
   { name: "payload", type: "text", notNull: true, primaryKey: false },
   { name: "resolution", type: "text", notNull: false, primaryKey: false },

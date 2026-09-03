@@ -919,6 +919,7 @@ const BRIDGE_LAUNCH = {
     supportsThreadArchive: false,
     supportsThreadRename: false,
     fork: "none",
+    supportsSubagents: false,
   },
 } as const;
 
@@ -930,7 +931,7 @@ const ACP_BRIDGE_LAUNCH = {
 
 describe("host-daemon command schemas", () => {
   it("uses the current host-daemon protocol version", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(178);
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(179);
     expect(HOST_ARTIFACT_MAX_BYTES).toBe(256 * 1024 * 1024);
   });
 
@@ -2129,6 +2130,7 @@ describe("host-daemon command schemas", () => {
         supportsThreadArchive: false,
         supportsThreadRename: false,
         fork: "tip",
+        supportsSubagents: false,
       },
       providerOptions: { launch: { command: "echo-agent" } },
       envPassthrough: ["BB_ECHO_AGENT_EXECUTABLE"],

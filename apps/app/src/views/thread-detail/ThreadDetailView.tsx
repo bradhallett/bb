@@ -855,6 +855,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
     loadOlderTimelineRows,
     modelFallback,
     pendingTodos,
+    subagents,
     timelineError,
     timelineLoading,
     timelineRows,
@@ -2531,6 +2532,7 @@ function ThreadDetailViewInternal(props: ThreadRoutePathArgs) {
       pendingInteractionsInitialLoading={pendingInteractionsInitialLoading}
       queuedMessageCount={thread.queuedMessageCount}
       pendingTodos={pendingTodos}
+      subagents={subagents}
       activePromptMode={activePromptMode}
       goal={goal}
       modelFallback={modelFallback}

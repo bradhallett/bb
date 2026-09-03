@@ -200,6 +200,65 @@ describe("acpSessionUpdateSchema", () => {
 
     expect(parsed.sessionUpdate).toBe("current_mode_update");
   });
+
+  it("accepts a subagents roster update without swallowing it as other", () => {
+    const parsed = acpSessionUpdateSchema.parse({
+      sessionUpdate: "subagents_update",
+      agents: [
+        {
+          id: "subagent-1",
+          label: "Scout",
+          state: "running",
+          summary: "Mapping the workspace",
+          transcriptRef: "tr_subagent_1",
+        },
+        {
+          id: "subagent-2",
+          label: "Reviewer",
+          state: "idle",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+
+    expect(parsed).toEqual({
+      sessionUpdate: "subagents_update",
+      agents: [
+        {
+          id: "subagent-1",
+          label: "Scout",
+          state: "running",
+          summary: "Mapping the workspace",
+          transcriptRef: "tr_subagent_1",
+        },
+        {
+          id: "subagent-2",
+          label: "Reviewer",
+          state: "idle",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+  });
+
+  it("rejects a subagents roster update with an unknown subagent state", () => {
+    expect(
+      acpSessionUpdateSchema.safeParse({
+        sessionUpdate: "subagents_update",
+        agents: [
+          {
+            id: "subagent-1",
+            label: "Scout",
+            state: "hibernating",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("acpSessionForkResultSchema", () => {

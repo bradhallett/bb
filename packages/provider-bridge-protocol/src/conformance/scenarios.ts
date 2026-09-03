@@ -43,6 +43,7 @@ interface ScenarioContext {
     bbTurnId: string,
   ) => string | undefined;
   fork: BridgeCapabilities["fork"];
+  subagents: boolean;
   providerThreadId?: string;
 }
 
@@ -190,6 +191,59 @@ export function checkPresentationIconsDeclared(
     PRESENTATION_ICONS_DECLARED_ID,
     PRESENTATION_ICONS_DECLARED_TITLE,
   );
+}
+
+const SUBAGENTS_ROSTER_STATE_ID = "subagents/roster-state";
+const SUBAGENTS_ROSTER_STATE_TITLE =
+  "subagent roster snapshots assemble as thread-scoped full-replace events";
+
+export function checkSubagentsRosterState(
+  events: ThreadEvent[],
+  declared: boolean,
+): ConformanceCheckResult {
+  let rosterCount = 0;
+  for (const event of events) {
+    if (event.type !== "thread/subagents/updated") {
+      continue;
+    }
+    rosterCount += 1;
+    if (!declared) {
+      return fail(
+        SUBAGENTS_ROSTER_STATE_ID,
+        SUBAGENTS_ROSTER_STATE_TITLE,
+        "the bridge emitted thread/subagents/updated without declaring the subagents capability; declare it so the runtime can rely on roster snapshots",
+      );
+    }
+    if (event.scope.kind !== "thread") {
+      return fail(
+        SUBAGENTS_ROSTER_STATE_ID,
+        SUBAGENTS_ROSTER_STATE_TITLE,
+        `a thread/subagents/updated event arrived with ${event.scope.kind} scope; roster snapshots are thread state, never part of a turn transcript`,
+      );
+    }
+    const seen = new Set<string>();
+    for (const agent of event.agents) {
+      if (seen.has(agent.id)) {
+        return fail(
+          SUBAGENTS_ROSTER_STATE_ID,
+          SUBAGENTS_ROSTER_STATE_TITLE,
+          `a thread/subagents/updated snapshot lists subagent id "${agent.id}" twice; each snapshot must be the roster exactly once so the latest one can replace all earlier state`,
+        );
+      }
+      seen.add(agent.id);
+    }
+  }
+  if (!declared) {
+    return pass(SUBAGENTS_ROSTER_STATE_ID, SUBAGENTS_ROSTER_STATE_TITLE);
+  }
+  if (rosterCount === 0) {
+    return skipped(
+      SUBAGENTS_ROSTER_STATE_ID,
+      SUBAGENTS_ROSTER_STATE_TITLE,
+      "the bridge declared the subagents capability but emitted no roster snapshot",
+    );
+  }
+  return pass(SUBAGENTS_ROSTER_STATE_ID, SUBAGENTS_ROSTER_STATE_TITLE);
 }
 
 export async function runRpcHygieneScenarios(
@@ -472,6 +526,11 @@ export async function runSessionLifecycleScenarios(
         "every item's first event is item/started",
         startSkipDetail,
       ),
+      skipped(
+        "subagents/roster-state",
+        "subagent roster snapshots assemble as thread-scoped full-replace events",
+        startSkipDetail,
+      ),
     );
   } else {
     const id = client.request(BRIDGE_REQUEST_METHODS.turnStart, {
@@ -525,6 +584,12 @@ export async function runSessionLifecycleScenarios(
     }
 
     results.push(checkItemOpensBeforeDelta(threadEvents(context, threadId)));
+    results.push(
+      checkSubagentsRosterState(
+        threadEvents(context, threadId),
+        context.subagents,
+      ),
+    );
 
     if (fixture.icons !== undefined) {
       results.push(

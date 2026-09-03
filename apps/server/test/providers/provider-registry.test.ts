@@ -13,6 +13,7 @@ const CURSOR_LIKE_INFO = {
     supportsNativeUserQuestion: false,
     supportsFork: false,
     supportsSessionRewind: false,
+    supportsSubagents: false,
     modelCatalogScope: "workspace" as const,
     permissionModes: ["full" as const],
   },

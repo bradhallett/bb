@@ -65,6 +65,7 @@ export function acpProviderDeclaration(
       : { experimental_resolvesNativeRoots: true }),
     experimental_bridgeOptions: {
       ...(agent.dialect === undefined ? {} : { acpDialect: agent.dialect }),
+      ...(agent.supportsSubagents === true ? { acpSubagents: true } : {}),
       ...(agent.parameterizedModelPicker === true
         ? { parameterizedModelPicker: true }
         : {}),
@@ -92,6 +93,9 @@ export function acpProviderDeclaration(
       permissionModes: [...ACP_BASE_CAPABILITIES.permissionModes],
       ...(agent.supportsManualCompaction === true
         ? { supportsManualCompaction: true }
+        : {}),
+      ...(agent.supportsSubagents === true
+        ? { supportsSubagents: true }
         : {}),
       reasoningLevels:
         agent.reasoningLevels === undefined

@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createBuiltinPlanCommandTextInput,
   createStandaloneBuiltinCompactCommandInput,
+  threadScope,
 } from "@bb/domain";
 import type { DynamicTool, ReasoningLevel } from "@bb/domain";
 import {
@@ -242,6 +243,7 @@ interface StartThreadArgs extends AgentLaunchArgs {
   reasoningLevel?: ReasoningLevel;
   serviceTier?: "default" | "fast";
   additionalWorkspaceWriteRoots?: string[];
+  subagents?: boolean;
 }
 
 async function startThread(args?: StartThreadArgs): Promise<{
@@ -258,6 +260,7 @@ async function startThread(args?: StartThreadArgs): Promise<{
       ...args,
       providerOptions: {
         ...(args?.dialectId ? { acpDialect: args.dialectId } : {}),
+        ...(args?.subagents === true ? { acpSubagents: true } : {}),
         ...(args?.parameterizedModelPicker === true
           ? { parameterizedModelPicker: true }
           : {}),
@@ -3102,6 +3105,96 @@ describe("acp bridge", () => {
     expect(threadEventsOfType("thread/contextWindowUsage/updated")).toEqual([]);
     expect(threadEventsOfType("provider/warning")).not.toHaveLength(0);
     startedProviderThreadIds.push(result.providerThreadId);
+  });
+
+  it("assembles the subagent roster from a declared provider's session updates", async () => {
+    const { providerThreadId } = await startThread({
+      subagents: true,
+      envVars: { FAKE_ACP_SUBAGENTS: "1" },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: [{ type: "text", text: "dispatch the scouts", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(
+      messagesForThread(bbThreadIdFor(providerThreadId)).flatMap(deltaKindsOf),
+    ).toContain("thread.subagents");
+    expect(
+      threadEventsOfType("thread/subagents/updated").at(-1),
+    ).toMatchObject({
+      scope: threadScope(),
+      agents: [
+        {
+          id: "fake-subagent-scout",
+          label: "Scout",
+          state: "running",
+          summary: "Mapping the workspace",
+          transcriptRef: null,
+        },
+        {
+          id: "fake-subagent-reviewer",
+          label: "Reviewer",
+          state: "idle",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+  });
+
+  it("replaces the subagent roster when the provider reports the next snapshot", async () => {
+    const { providerThreadId } = await startThread({
+      subagents: true,
+      envVars: { FAKE_ACP_SUBAGENTS: "1" },
+    });
+
+    const firstTurnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: [{ type: "text", text: "dispatch the scouts", mentions: [] }],
+    });
+    await waitForResponse(firstTurnId);
+    await waitForTurnCompleted();
+    const secondTurnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: [{ type: "text", text: "check on the scouts", mentions: [] }],
+    });
+    await waitForResponse(secondTurnId);
+    await waitForTurnCompleted();
+    const rosterEvents = threadEventsOfType("thread/subagents/updated");
+    expect(rosterEvents).toHaveLength(2);
+    expect(rosterEvents.at(-1)).toMatchObject({
+      scope: threadScope(),
+      agents: [
+        {
+          id: "fake-subagent-scout",
+          label: "Scout",
+          state: "idle",
+          summary: "Finished mapping the workspace",
+          transcriptRef: null,
+        },
+      ],
+    });
+    expect(
+      messagesForThread(bbThreadIdFor(providerThreadId))
+        .flatMap(deltaKindsOf)
+        .filter((kind) => kind === "thread.subagents"),
+    ).toHaveLength(2);
+  });
+
+  it("drops the subagent roster when the provider did not declare it", async () => {
+    const { providerThreadId } = await startThread({
+      envVars: { FAKE_ACP_SUBAGENTS: "1" },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: [{ type: "text", text: "dispatch the scouts", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(threadEventsOfType("thread/subagents/updated")).toEqual([]);
+    expect(emittedDeltaKinds()).not.toContain("thread.subagents");
   });
 
   it("re-applies ACP-native reasoning after session/load resume", async () => {

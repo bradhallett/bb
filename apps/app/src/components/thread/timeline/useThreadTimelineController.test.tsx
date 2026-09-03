@@ -43,6 +43,7 @@ function makeTimelineResponse(): ThreadTimelineResponse {
     activeBackgroundCommands: [],
     pendingTodos: null,
     goal: null,
+    subagents: null,
     modelFallback: null,
     maxSeq: 0,
     timelinePage: {
@@ -167,6 +168,50 @@ describe("useThreadTimelineController", () => {
       expect(result.current.timelineLoading).toBe(false);
       expect(result.current.timelineError).toBeNull();
       expect(sdk.threads.timeline).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("exposes the latest subagents snapshot and replaces it with each newer one", async () => {
+    const runningRoster: ThreadTimelineResponse["subagents"] = [
+      {
+        id: "agent_writer",
+        label: "Writer",
+        state: "running",
+        summary: "Drafting the migration notes",
+        transcriptRef: null,
+      },
+    ];
+    const parkedRoster: ThreadTimelineResponse["subagents"] = [
+      {
+        id: "agent_writer",
+        label: "Writer",
+        state: "parked",
+        summary: null,
+        transcriptRef: null,
+      },
+    ];
+    vi.mocked(sdk.threads.timeline)
+      .mockResolvedValueOnce({ ...makeTimelineResponse(), subagents: runningRoster })
+      .mockResolvedValueOnce({ ...makeTimelineResponse(), subagents: parkedRoster });
+
+    const { queryClient, wrapper } = createQueryClientTestHarness();
+    const { result } = renderHook(
+      () => useThreadTimelineController({ threadId: "thread-1" }),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.subagents).toEqual(runningRoster);
+    });
+
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: threadTimelineQueryKey("thread-1"),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.subagents).toEqual(parkedRoster);
     });
   });
 });

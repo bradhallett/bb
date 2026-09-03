@@ -1511,6 +1511,50 @@ describe("events", () => {
     ).toEqual([2, 3]);
   });
 
+  it("persists subagent roster snapshots and returns them in timeline windows", () => {
+    const { db, thread } = setup();
+
+    insertEvents(db, noopNotifier, [
+      {
+        threadId: thread.id,
+        sequence: 1,
+        type: "thread/subagents/updated",
+        ...threadEventFields,
+        providerThreadId: "provider-thread-1",
+        data: JSON.stringify({
+          agents: [
+            {
+              id: "agent-1",
+              label: "Scout",
+              state: "running",
+              summary: "Reading tree",
+              transcriptRef: null,
+            },
+          ],
+        }),
+      },
+      {
+        threadId: thread.id,
+        sequence: 2,
+        type: "thread/subagents/updated",
+        ...threadEventFields,
+        providerThreadId: "provider-thread-1",
+        data: JSON.stringify({ agents: [] }),
+      },
+    ]);
+
+    const rows = listStoredTimelineWindowEventRows(db, {
+      excludedTypes: [],
+      maxInlineOutputChars: null,
+      threadId: thread.id,
+    });
+    expect(rows.map((row) => row.type)).toEqual([
+      "thread/subagents/updated",
+      "thread/subagents/updated",
+    ]);
+    expect(JSON.parse(rows[1]?.data ?? "{}")).toEqual({ agents: [] });
+  });
+
   it("skips superseded backgroundTask progress snapshots in timeline reads", () => {
     const { db, thread } = setup();
 

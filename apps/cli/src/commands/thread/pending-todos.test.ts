@@ -111,6 +111,7 @@ describe("fetchThreadPendingTodos", () => {
       activeBackgroundCommands: [],
       pendingTodos,
       goal: null,
+      subagents: null,
       modelFallback: null,
       rows: [],
       maxSeq: 0,

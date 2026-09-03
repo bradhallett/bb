@@ -41,6 +41,7 @@ export function getEventProviderThreadId(
     case "provider/modelFallback":
     case "provider/rateLimits/updated":
     case "thread/extensionState/updated":
+    case "thread/subagents/updated":
     case "provider/unhandled":
       return decoded.providerThreadId;
     case "turn/completed":
@@ -105,6 +106,7 @@ export function getEventParentToolCallId(
     case "provider/modelFallback":
     case "provider/rateLimits/updated":
     case "thread/extensionState/updated":
+    case "thread/subagents/updated":
     case "client/thread/start":
     case "client/turn/requested":
     case "client/turn/rejected":

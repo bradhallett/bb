@@ -169,6 +169,66 @@ describe("@bb/sdk", () => {
     ]);
   });
 
+  it("reads the subagent roster from a summary-only timeline request", async () => {
+    const queue = createFetchQueue([
+      {
+        body: {
+          rows: [],
+          activePromptMode: null,
+          activeThinking: null,
+          activeWorkflows: [],
+          activeBackgroundCommands: [],
+          pendingTodos: null,
+          goal: null,
+          subagents: [
+            {
+              id: "agent-1",
+              label: "Scout",
+              state: "running",
+              summary: null,
+              transcriptRef: null,
+            },
+          ],
+          modelFallback: null,
+          maxSeq: 4,
+          timelinePage: {
+            kind: "latest",
+            segmentLimit: 20,
+            returnedSegmentCount: 0,
+            hasOlderRows: false,
+            olderCursor: null,
+          },
+        },
+      },
+    ]);
+    const sdk = createBbSdk({
+      transport: createHttpTransport({
+        baseUrl: "http://bb.test",
+        fetch: queue.fetch,
+        runtime: "node",
+      }),
+    });
+
+    await expect(
+      sdk.threads.subagents({ threadId: "thr_test" }),
+    ).resolves.toEqual([
+      {
+        id: "agent-1",
+        label: "Scout",
+        state: "running",
+        summary: null,
+        transcriptRef: null,
+      },
+    ]);
+    expect(queue.requests).toEqual([
+      {
+        bodyText: undefined,
+        method: "GET",
+        url: "http://bb.test/api/v1/threads/thr_test/timeline?summaryOnly=true",
+      },
+    ]);
+  });
+
   it("forwards read abort signals to fetch", async () => {
     const controller = new AbortController();
     let receivedSignal: AbortSignal | null | undefined;

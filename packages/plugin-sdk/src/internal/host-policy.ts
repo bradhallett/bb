@@ -1177,6 +1177,12 @@ export type NormalizedPluginProviderDeclaration = Omit<
   | "experimental_nativeCommandRoots"
   | "experimental_resolvesNativeRoots"
 > & {
+  readonly capabilities: Omit<
+    PluginProviderCapabilities,
+    "supportsSubagents"
+  > & {
+    readonly supportsSubagents: boolean;
+  };
   readonly experimental_nativeSkillRoots?: ProviderNativeRoots;
   readonly experimental_nativeCommandRoots?: ProviderNativeRoots;
   readonly experimental_resolvesNativeRoots: boolean;
@@ -1385,19 +1391,28 @@ export function validatePluginProviderDeclaration(
     }
   }
   if (
+    capabilities.supportsSubagents !== undefined &&
+    typeof capabilities.supportsSubagents !== "boolean"
+  ) {
+    throw new Error(
+      `provider "${id}" capabilities.supportsSubagents must be a boolean`,
+    );
+  }
+  if (
     !(PROVIDER_FORK_VALUES as readonly string[]).includes(capabilities.fork)
   ) {
     throw new Error(
       `provider "${id}" capabilities.fork must be one of ${PROVIDER_FORK_VALUES.join(", ")}`,
     );
   }
-  const normalizedCapabilities: PluginProviderCapabilities = Object.freeze({
+  const normalizedCapabilities = Object.freeze({
     supportsServiceTier: capabilities.supportsServiceTier,
     supportsNativeUserQuestion: capabilities.supportsNativeUserQuestion,
     fork: capabilities.fork,
     supportsManualCompaction: capabilities.supportsManualCompaction,
     supportsThreadArchive: capabilities.supportsThreadArchive,
     supportsThreadRename: capabilities.supportsThreadRename,
+    supportsSubagents: capabilities.supportsSubagents ?? false,
     permissionModes: validateProviderLiteralArray({
       providerId: id,
       field: "capabilities.permissionModes",

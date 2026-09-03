@@ -51,8 +51,8 @@ BB_HOST_DAEMON_PORT only for an intentional non-default target.
 - Prefer non-interactive commands and machine-readable output for automation.
 - Pass `--yes` for a confirmed destructive command in a non-interactive shell.
 - Treat plugin commands as normal top-level commands after installation.
-- Inspect real status, logs, API results, or diffs instead of assumptions.
-- Keep file paths on the machine that owns the selected workspace.
+- Inspect real status, logs, subagent rosters, API results, or diffs instead
+  of assumptions.
 
 ## Common checks
 

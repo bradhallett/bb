@@ -242,6 +242,7 @@ function resolveProviderIdentifiers(event: HostDaemonEventEnvelope["event"]): {
     case "thread/goal/updated":
     case "thread/goal/cleared":
     case "thread/extensionState/updated":
+    case "thread/subagents/updated":
       return { providerThreadId: event.providerThreadId };
     case "turn/started":
     case "turn/completed":

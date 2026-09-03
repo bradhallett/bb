@@ -139,6 +139,10 @@
     "thread.started": {
       "kind": "required"
     },
+    "thread.subagents": {
+      "kind": "required",
+      "agents": "required"
+    },
     "turn.boundary": {
       "kind": "required",
       "status": "required",
@@ -284,6 +288,7 @@
     "threadArchive": "default",
     "threadRename": "default",
     "threadGoalClear": "default",
+    "subagents": "default",
     "fork": "default",
     "approvalEnforcedBy": "default",
     "grammarVersions": "default",

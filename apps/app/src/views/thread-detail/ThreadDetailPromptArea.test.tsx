@@ -7,6 +7,7 @@ import type {
   ThreadTimelineActivePromptMode,
   ThreadTimelineGoal,
   ThreadTimelineModelFallback,
+  ThreadSubagent,
   ThreadWithRuntime,
 } from "@bb/domain";
 import {
@@ -663,6 +664,7 @@ function makePendingInteraction(): PendingInteraction {
     resolution: null,
     status: "pending",
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
   };
@@ -686,6 +688,7 @@ function makePluginPendingInteraction(): PendingInteraction {
     resolution: null,
     status: "pending",
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
   };
@@ -701,6 +704,7 @@ interface RenderPromptAreaOptions {
   pendingInteractionsInitialLoading?: boolean;
   queuedMessageCount?: number;
   sentMessageEdit?: ThreadDetailSentMessageEdit;
+  subagents?: ThreadSubagent[] | null;
   thread?: ThreadWithRuntime;
 }
 
@@ -714,6 +718,7 @@ function buildPromptAreaElement({
   pendingInteractionsInitialLoading = false,
   queuedMessageCount = 0,
   sentMessageEdit,
+  subagents = null,
   thread = makeThread(),
 }: RenderPromptAreaOptions = {}) {
   return (
@@ -727,6 +732,7 @@ function buildPromptAreaElement({
       childThreadsSection={null}
       composerFocusRequestNonce={0}
       contextBannerMergeBase={null}
+      subagents={subagents}
       environmentGoneStatus={null}
       goal={goal}
       modelFallback={modelFallback}
@@ -1700,6 +1706,57 @@ describe("ThreadDetailPromptArea", () => {
         .getAllByTestId("composer-stack-item")
         .map((item) => item.textContent),
     ).toEqual(["Plan banner", "Goal banner", "Pending interaction"]);
+  });
+
+  it("shows the subagents roster above the composer from the timeline snapshot", () => {
+    renderPromptArea({
+      subagents: [
+        {
+          id: "agent_writer",
+          label: "Writer",
+          state: "running",
+          summary: "Drafting the release notes",
+          transcriptRef: null,
+        },
+        {
+          id: "agent_audit",
+          label: "Audit",
+          state: "idle",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Subagents: 1 of 2 agents running" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the subagents roster mounted while a pending interaction is up", () => {
+    renderPromptArea({
+      pendingInteractions: [makePendingInteraction()],
+      subagents: [
+        {
+          id: "agent_writer",
+          label: "Writer",
+          state: "parked",
+          summary: null,
+          transcriptRef: null,
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Subagents: 0 of 1 agent running" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Pending interaction")).toBeTruthy();
+  });
+
+  it("leaves the composer area without a roster when the snapshot has none", () => {
+    renderPromptArea({ subagents: null });
+
+    expect(screen.queryByRole("button", { name: /Subagents/ })).toBeNull();
   });
 
   it("selects the provider fallback model for the next turn", () => {

@@ -67,6 +67,7 @@ export interface AcpSessionParams {
   cwd: string;
   agent: { command: string; args: string[] };
   dialectId?: string | undefined;
+  subagents: boolean;
   modelSelection?: AcpModelSelection;
   launchReasoningLevel?: ReasoningLevel;
   reasoningCli?: AcpBridgeReasoningCli;
@@ -258,6 +259,7 @@ interface BuildAcpSessionParamsArgs {
   additionalWorkspaceWriteRoots: readonly string[];
   cwd: string;
   dialectId?: string | undefined;
+  subagents: boolean;
   dynamicTools?: readonly DynamicTool[] | undefined;
   launchSpec: AcpLaunchSpec;
   options: AcpSessionExecutionOptions;
@@ -289,6 +291,7 @@ export function buildAcpSessionParams(
       args: [...launchSpec.args],
     },
     ...(args.dialectId === undefined ? {} : { dialectId: args.dialectId }),
+    subagents: args.subagents,
     ...buildAcpModelSelectionParam(
       launchSpec,
       options,

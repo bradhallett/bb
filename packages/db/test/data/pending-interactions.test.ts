@@ -99,6 +99,31 @@ describe("pending interactions", () => {
     );
   });
 
+  it("persists the agent label and defaults it to null when absent", () => {
+    const { db, thread } = setup();
+
+    const attributed = createPendingInteraction(db, {
+      threadId: thread.id,
+      turnId: "turn-agent",
+      agentLabel: "Scout",
+      providerId: "codex",
+      providerThreadId: "provider-thread-1",
+      providerRequestId: "request-agent",
+      payload: commandApprovalPayload("ls -la", "item-agent"),
+    });
+    const unattributed = createPendingInteraction(db, {
+      threadId: thread.id,
+      turnId: "turn-plain",
+      providerId: "codex",
+      providerThreadId: "provider-thread-1",
+      providerRequestId: "request-plain",
+      payload: commandApprovalPayload("pwd", "item-plain"),
+    });
+
+    expect(attributed.agentLabel).toBe("Scout");
+    expect(unattributed.agentLabel).toBeNull();
+  });
+
   it("rejects duplicate provider request identities", () => {
     const { db, siblingThread, thread } = setup();
     const created = createPendingInteraction(db, {

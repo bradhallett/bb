@@ -145,6 +145,13 @@ describe("handshake gating", () => {
     expect(adapter.approvalEnforcedBy).toBe("provider");
   });
 
+  it("derives the enforced subagent capability from the live handshake", () => {
+    const adapter = makeAdapter();
+    expect(adapter.capabilities.supportsSubagents).toBe(false);
+    completeHandshake(adapter, { subagents: true });
+    expect(adapter.capabilities.supportsSubagents).toBe(true);
+  });
+
   it("routes declared sessionless maintenance methods with provider context", () => {
     const adapter = makeAdapter();
     expect(

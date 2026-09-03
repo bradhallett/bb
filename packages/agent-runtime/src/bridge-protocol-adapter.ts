@@ -78,7 +78,7 @@ export type BridgeEnforcedCapabilities = Omit<
 
 interface BridgeAdapterCapabilities extends Omit<
   BridgeEnforcedCapabilities,
-  "supportsFork" | "supportsSessionRewind"
+  "supportsFork" | "supportsSessionRewind" | "supportsSubagents"
 > {
   fork: ProviderFork;
 }
@@ -171,6 +171,9 @@ export function createBridgeProtocolAdapter(
     ...declaredCapabilities,
     supportsFork: declaredFork !== "none",
     supportsSessionRewind: declaredFork === "checkpoint",
+    get supportsSubagents() {
+      return handshake.subagents;
+    },
   };
   function effectiveFork(): ProviderFork {
     return PROVIDER_FORK_VALUES.indexOf(handshake.fork) <

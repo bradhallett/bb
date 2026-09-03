@@ -60,6 +60,7 @@ import {
   acpAgentMessageChunkUpdateSchema,
   acpAgentThoughtChunkUpdateSchema,
   acpPlanUpdateSchema,
+  acpSubagentsUpdateSchema,
   acpToolCallUpdateEventSchema,
   acpUsageUpdateSchema,
   extractAcpContentText,
@@ -76,6 +77,7 @@ interface AcpDeltaTranslationContext {
 export interface AcpDeltaTranslatorOptions {
   cwd?: string | undefined;
   dialect?: AcpDialect | undefined;
+  subagents?: boolean | undefined;
 }
 
 export interface AcpPermissionToolCallInput {
@@ -169,6 +171,7 @@ export function createAcpDeltaTranslator(
   options: AcpDeltaTranslatorOptions = {},
 ) {
   const dialect = options.dialect ?? GENERIC_ACP_DIALECT;
+  const subagents = options.subagents === true;
   const pathOptions = { cwd: options.cwd };
   const mergedToolCalls = new Map<string, AcpOpenToolCall>();
 
@@ -794,6 +797,22 @@ export function createAcpDeltaTranslator(
             size: parsed.data.size,
             estimated: false,
             attach: "open",
+          },
+        ];
+      }
+
+      case "subagents_update": {
+        if (!subagents) {
+          return unhandledDeltas(rawEvent);
+        }
+        const parsed = acpSubagentsUpdateSchema.safeParse(update);
+        if (!parsed.success) {
+          return [];
+        }
+        return [
+          {
+            kind: "thread.subagents",
+            agents: parsed.data.agents,
           },
         ];
       }

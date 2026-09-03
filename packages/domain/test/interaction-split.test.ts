@@ -147,6 +147,7 @@ describe("interaction lifecycle record", () => {
         id: "pint_1",
         status: "resolved",
         statusReason: null,
+        agentLabel: null,
         origin: {
           kind: "provider",
           providerId: "codex",
@@ -170,6 +171,7 @@ describe("interaction lifecycle record", () => {
         providerRequestId: "r1",
         status: "resolved",
         statusReason: null,
+        agentLabel: null,
         createdAt: 1,
         resolvedAt: 2,
         payload: approvalPayload,
@@ -188,6 +190,7 @@ describe("interaction lifecycle record", () => {
       providerRequestId: "r1",
       status: "resolved",
       statusReason: null,
+      agentLabel: null,
       createdAt: 1,
       resolvedAt: 2,
       payload: approvalPayload,
@@ -197,6 +200,7 @@ describe("interaction lifecycle record", () => {
       id: "pint_1",
       status: "resolved",
       statusReason: null,
+      agentLabel: null,
       origin: {
         kind: "provider",
         providerId: "codex",
@@ -216,6 +220,7 @@ describe("interaction lifecycle record", () => {
         turnId: null,
         status: "pending",
         statusReason: null,
+        agentLabel: null,
         createdAt: 1,
         resolvedAt: null,
         origin: {
@@ -234,6 +239,7 @@ describe("interaction lifecycle record", () => {
       id: "pint_2",
       status: "pending",
       statusReason: null,
+      agentLabel: null,
       origin: {
         kind: "plugin",
         pluginId: "secrets",
@@ -288,6 +294,7 @@ describe("plugin-defined request on the wire", () => {
         providerRequestId: "r3",
         status: "resolved",
         statusReason: null,
+        agentLabel: null,
         createdAt: 1,
         resolvedAt: 2,
         payload: request,
@@ -297,6 +304,7 @@ describe("plugin-defined request on the wire", () => {
       id: "pint_3",
       status: "resolved",
       statusReason: null,
+      agentLabel: null,
       origin: {
         kind: "provider",
         providerId: "acp-cursor",

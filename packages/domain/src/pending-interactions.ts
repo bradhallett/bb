@@ -567,6 +567,7 @@ const pendingInteractionBaseSchema = z.object({
   threadId: z.string().min(1),
   status: pendingInteractionStatusSchema,
   statusReason: z.string().nullable(),
+  agentLabel: z.string().nullable().default(null),
   createdAt: z.number().int().nonnegative(),
   expiresAt: z.number().int().nonnegative().nullable().optional(),
   resolvedAt: z.number().int().nonnegative().nullable(),
@@ -739,6 +740,7 @@ export function toInteractionLifecycle(
     id: interaction.id,
     status: interaction.status,
     statusReason: interaction.statusReason,
+    agentLabel: interaction.agentLabel,
   };
   if (isPluginPendingInteraction(interaction)) {
     return {

@@ -2012,6 +2012,17 @@ export function createDeltaAssembler(
         return;
       }
 
+      case "thread.subagents": {
+        events.push({
+          type: "thread/subagents/updated",
+          threadId: UNSTAMPED_THREAD_ID,
+          providerThreadId: "",
+          scope: threadScope(),
+          agents: delta.agents,
+        });
+        return;
+      }
+
       case "session.reset": {
         return;
       }

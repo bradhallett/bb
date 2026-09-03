@@ -11,6 +11,7 @@ type PendingInteractionReadConnection = DbConnection | DbTransaction;
 export type PendingInteractionRow = typeof pendingInteractions.$inferSelect;
 
 interface CreatePendingInteractionInputBase {
+  agentLabel?: string | null;
   expiresAt?: number | null;
   payload: string;
   threadId: string;
@@ -136,6 +137,7 @@ export function createPendingInteraction(
       threadId: input.threadId,
       originKind: input.originKind ?? "provider",
       turnId: input.turnId,
+      agentLabel: input.agentLabel ?? null,
       providerId: input.originKind !== "plugin" ? input.providerId : null,
       providerThreadId:
         input.originKind !== "plugin" ? input.providerThreadId : null,

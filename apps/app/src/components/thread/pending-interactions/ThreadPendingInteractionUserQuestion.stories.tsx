@@ -30,6 +30,7 @@ function basePendingInteraction(): Omit<
     providerRequestId: "request-demo",
     status: "pending",
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
   };

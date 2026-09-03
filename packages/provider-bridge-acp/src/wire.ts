@@ -1,3 +1,4 @@
+import { threadSubagentSchema } from "@bb/domain";
 import { z } from "zod";
 
 const acpTextContentBlockSchema = z
@@ -192,6 +193,13 @@ export const acpCurrentModeUpdateSchema = z
   })
   .passthrough();
 export type AcpCurrentModeUpdate = z.infer<typeof acpCurrentModeUpdateSchema>;
+export const acpSubagentsUpdateSchema = z
+  .object({
+    sessionUpdate: z.literal("subagents_update"),
+    agents: z.array(threadSubagentSchema),
+  })
+  .passthrough();
+export type AcpSubagentsUpdate = z.infer<typeof acpSubagentsUpdateSchema>;
 
 export const acpUsageUpdateSchema = z
   .object({
@@ -202,9 +210,25 @@ export const acpUsageUpdateSchema = z
   .passthrough();
 export type AcpUsageUpdate = z.infer<typeof acpUsageUpdateSchema>;
 
+const acpKnownSessionUpdateKinds: Record<string, true> = {
+  agent_message_chunk: true,
+  agent_thought_chunk: true,
+  tool_call: true,
+  tool_call_update: true,
+  plan: true,
+  current_mode_update: true,
+  subagents_update: true,
+  usage_update: true,
+};
+
 const acpOtherSessionUpdateSchema = z
   .object({
-    sessionUpdate: z.string(),
+    sessionUpdate: z
+      .string()
+      .refine(
+        (kind) => acpKnownSessionUpdateKinds[kind] === undefined,
+        "Known session update kinds must parse as their own variant",
+      ),
   })
   .passthrough();
 
@@ -214,6 +238,7 @@ export const acpSessionUpdateSchema = z.union([
   acpToolCallUpdateEventSchema,
   acpPlanUpdateSchema,
   acpCurrentModeUpdateSchema,
+  acpSubagentsUpdateSchema,
   acpUsageUpdateSchema,
   acpOtherSessionUpdateSchema,
 ]);

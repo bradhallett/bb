@@ -131,6 +131,7 @@ export function buildPluginProviderRegistration(args: {
     supportsThreadRename,
     supportsServiceTier,
     supportsNativeUserQuestion,
+    supportsSubagents,
     permissionModes,
   } = capabilities;
 
@@ -181,6 +182,7 @@ export function buildPluginProviderRegistration(args: {
       permissionModes: [...permissionModes],
       supportsFork: capabilities.fork !== "none",
       supportsSessionRewind: capabilities.fork === "checkpoint",
+      supportsSubagents,
       modelCatalogScope: declaration.models.scope,
     },
     composerActions,

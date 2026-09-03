@@ -17,6 +17,7 @@
  * - FAKE_ACP_USAGE_ON_LOAD=1 → report context usage during session/load
  * - FAKE_ACP_USAGE_SESSION_ID
  *                            → override the usage notification session id
+ * - FAKE_ACP_SUBAGENTS=1    → emit a subagents_update roster on each prompt
  * - FAKE_ACP_MODEL_LINES     → stdout for the agent's `--list-models` mode
  * - FAKE_ACP_MODEL_LIST_STDERR
  *                            → make `--list-models` fail with this stderr
@@ -103,6 +104,8 @@ const updatesWithSessionResponse =
   process.env.FAKE_ACP_UPDATES_WITH_SESSION_RESPONSE === "1";
 const ignoreCancel = process.env.FAKE_ACP_IGNORE_CANCEL === "1";
 const sessionModes = process.env.FAKE_ACP_SESSION_MODES === "1";
+const subagents = process.env.FAKE_ACP_SUBAGENTS === "1";
+let subagentRosterEmitted = false;
 let currentModeId = "default";
 // `--list-models` is the agent's own model-list mode: the bridge derives its
 // list command from the launch spec's agent binary plus `modelCli.listArgs`,
@@ -441,6 +444,39 @@ async function handlePrompt(message) {
       error: { code: -32000, message: "Fake prompt failure" },
     });
     return;
+  }
+
+  if (subagents) {
+    notifyUpdate({
+      sessionUpdate: "subagents_update",
+      agents: subagentRosterEmitted
+        ? [
+            {
+              id: "fake-subagent-scout",
+              label: "Scout",
+              state: "idle",
+              summary: "Finished mapping the workspace",
+              transcriptRef: null,
+            },
+          ]
+        : [
+            {
+              id: "fake-subagent-scout",
+              label: "Scout",
+              state: "running",
+              summary: "Mapping the workspace",
+              transcriptRef: null,
+            },
+            {
+              id: "fake-subagent-reviewer",
+              label: "Reviewer",
+              state: "idle",
+              summary: null,
+              transcriptRef: null,
+            },
+          ],
+    });
+    subagentRosterEmitted = true;
   }
 
   if (text === "/compact") {

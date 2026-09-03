@@ -15,6 +15,7 @@ import {
   threadEventTokenUsageBreakdownSchema,
   threadEventTurnStatusSchema,
   threadEventWarningCategorySchema,
+  threadSubagentSchema,
   workflowProgressSnapshotSchema,
 } from "@bb/domain";
 import { z } from "zod";
@@ -343,6 +344,11 @@ export const threadDeltaSchema = z.discriminatedUnion("kind", [
     kind: z.literal("extension.state"),
     extensionKind: extensionKindSchema,
     payload: jsonValueSchema,
+  }),
+
+  z.object({
+    kind: z.literal("thread.subagents"),
+    agents: z.array(threadSubagentSchema),
   }),
 
   z.object({

@@ -1706,6 +1706,7 @@ async function startAgentSession(
   const translator = createAcpDeltaTranslator({
     cwd: params.cwd,
     dialect,
+    subagents: params.subagents,
   });
   translator.configureInjectedTools(
     (params.dynamicTools ?? []).map((tool) => ({
@@ -2460,6 +2461,7 @@ const acpProviderOptionsSchema = z
   .object({
     additionalWorkspaceWriteRoots: z.array(z.string()).optional(),
     acpDialect: z.string().min(1).optional(),
+    acpSubagents: z.boolean().optional(),
     parameterizedModelPicker: z.boolean().optional(),
     primaryModels: z.array(z.string().min(1)).optional(),
     reasoningProbePriorityModelIds: z.array(z.string().min(1)).optional(),
@@ -2502,6 +2504,14 @@ function decodeDialectId(
   return acpProviderOptionsSchema.parse(providerOptions ?? {}).acpDialect;
 }
 
+function decodeSubagents(
+  providerOptions: Record<string, unknown> | undefined,
+): boolean {
+  return (
+    acpProviderOptionsSchema.parse(providerOptions ?? {}).acpSubagents === true
+  );
+}
+
 function maintenanceForRequest(
   providerOptions: Record<string, unknown> | undefined,
   launchSpec: AcpLaunchSpec | null,
@@ -2526,6 +2536,7 @@ async function handleRequest(
           threadArchive: false,
           threadRename: false,
           threadGoalClear: false,
+          subagents: false,
           fork: "tip",
           approvalEnforcedBy: "runtime",
           grammarVersions: [THREAD_DELTA_GRAMMAR_V3, THREAD_DELTA_GRAMMAR_V3],
@@ -2644,6 +2655,7 @@ async function handleRequest(
           params.options.providerOptions,
         ),
         dialectId: decodeDialectId(params.options.providerOptions),
+        subagents: decodeSubagents(params.options.providerOptions),
         cwd: params.cwd,
         dynamicTools: params.dynamicTools,
         options: {

@@ -72,6 +72,7 @@ export function makeTimelineResponse(
     activeBackgroundCommands: [],
     pendingTodos: null,
     goal: null,
+    subagents: null,
     modelFallback: null,
     maxSeq: 0,
     timelinePage: {
@@ -160,6 +161,7 @@ export function makePendingInteraction(
     resolvedAt: null,
     status: "pending" as const,
     statusReason: null,
+    agentLabel: null,
     ...rest,
   };
   if (payload === undefined || payload.kind === "approval") {

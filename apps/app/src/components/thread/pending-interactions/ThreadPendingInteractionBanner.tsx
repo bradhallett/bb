@@ -70,6 +70,7 @@ interface UserQuestionPendingInteractionBannerProps {
 }
 
 interface BannerShellProps {
+  agentLabel?: string | null;
   title?: string;
   errorMessage?: string | null;
   footer?: ReactNode;
@@ -138,6 +139,11 @@ export function ThreadPendingInteractionBanner({
               From child thread: {sourceThread.title}
             </NavLink>
           ) : null}
+          {interaction.agentLabel ? (
+            <p className="mb-1 text-xs text-muted-foreground">
+              Agent: {interaction.agentLabel}
+            </p>
+          ) : null}
           <PluginPendingInteractionComposer
             interaction={interaction}
             request={{
@@ -194,6 +200,7 @@ function PlanReviewRequestBanner({
   const { plan, planFilePath } = request.review;
   return (
     <BannerShell
+      agentLabel={interaction.agentLabel}
       title={approval.reason ?? "Ready to code?"}
       errorMessage={mutationErrorMessage}
       sourceThread={sourceThread}
@@ -229,8 +236,8 @@ function PlanReviewRequestBanner({
     </BannerShell>
   );
 }
-
 function BannerShell({
+  agentLabel,
   title,
   errorMessage,
   footer,
@@ -246,6 +253,11 @@ function BannerShell({
         >
           From child thread: {sourceThread.title}
         </NavLink>
+      ) : null}
+      {agentLabel ? (
+        <p className="mb-1 text-xs text-muted-foreground">
+          Agent: {agentLabel}
+        </p>
       ) : null}
       {title ? (
         <h3 className="min-w-0 text-sm font-semibold text-foreground">
@@ -312,6 +324,7 @@ function ApprovalPendingInteractionBanner({
 
   return (
     <BannerShell
+      agentLabel={interaction.agentLabel}
       title={view.title}
       errorMessage={mutationErrorMessage}
       sourceThread={sourceThread}
@@ -338,9 +351,11 @@ function ThreadUserQuestionPendingInteractionBanner({
   threadId,
 }: UserQuestionPendingInteractionBannerProps) {
   const isResolving = interaction.status === "resolving";
-
   return (
-    <BannerShell sourceThread={sourceThread}>
+    <BannerShell
+      agentLabel={interaction.agentLabel}
+      sourceThread={sourceThread}
+    >
       <UserQuestionAnswerForm
         interactionId={interaction.id}
         isResolving={isResolving}

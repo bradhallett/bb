@@ -148,6 +148,11 @@ const threadEventScopeDefinitionByType = {
     rationale:
       "Plugin-declared thread state is current thread metadata (like goals), not part of a specific turn transcript; latest snapshot per kind wins.",
   },
+  "thread/subagents/updated": {
+    policy: "thread",
+    rationale:
+      "Subagent roster state is current thread metadata like extension state; each snapshot replaces the last rather than joining a turn transcript.",
+  },
   "provider/warning": {
     policy: "thread-or-turn",
     rationale:

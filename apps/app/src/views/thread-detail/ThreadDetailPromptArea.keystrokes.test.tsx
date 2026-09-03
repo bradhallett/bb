@@ -332,6 +332,7 @@ function makePendingInteraction(threadId: string): PendingInteraction {
     resolution: null,
     status: "pending",
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
   };
@@ -381,6 +382,7 @@ function buildPromptArea({
         contextBannerMergeBase={null}
         environmentGoneStatus={null}
         goal={null}
+        subagents={null}
         modelFallback={null}
         isEnvironmentActionPending={false}
         onChangedFileClick={vi.fn()}

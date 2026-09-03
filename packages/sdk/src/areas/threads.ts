@@ -7,6 +7,7 @@ import {
   type ResolvedThreadExecutionOptions,
   type ThreadEventRow,
   type ThreadEventType,
+  type ThreadSubagent,
   type QueuedMessageWaitHolder,
   type ThreadQueuedMessage,
   type ThreadStatus,
@@ -171,6 +172,7 @@ export type ThreadInteractionCancelResult = PendingInteraction;
 export type ThreadEventsListResult = ThreadEventRow[];
 export type ThreadEventWaitResult = ThreadEventRow | null;
 export type ThreadTimelineResult = ThreadTimelineResponse;
+export type ThreadSubagentsResult = ThreadSubagent[] | null;
 export type ThreadArchiveResult = ThreadArchiveAllResponse;
 export type ThreadOpenResult = ThreadOpenResponse;
 export type ThreadPaneActionResult = ThreadPaneActionResponse;
@@ -270,6 +272,11 @@ export interface ThreadRetryArgs {
 }
 
 export interface ThreadActionArgs {
+  threadId: string;
+}
+
+export interface ThreadSubagentsArgs {
+  signal?: AbortSignal;
   threadId: string;
 }
 
@@ -572,6 +579,7 @@ export interface ThreadsArea {
   spawn(args: ThreadSpawnArgs): Promise<ThreadSpawnResult>;
   stop(args: ThreadActionArgs): Promise<ThreadStopResult>;
   tabs: ThreadTabsArea;
+  subagents(args: ThreadSubagentsArgs): Promise<ThreadSubagentsResult>;
   timeline(args: ThreadTimelineArgs): Promise<ThreadTimelineResult>;
   timelineTurnSummaryDetails(
     args: ThreadTimelineTurnSummaryDetailsArgs,
@@ -1279,6 +1287,18 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
           ...signalRequestArgs(input.signal),
         ),
       );
+    },
+    async subagents(input) {
+      const timeline = await transport.readJson(
+        transport.api.v1.threads[":id"].timeline.$get(
+          {
+            param: { id: input.threadId },
+            query: { summaryOnly: "true" },
+          },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+      return timeline.subagents;
     },
     async timelineTurnSummaryDetails(input) {
       return transport.readJson(

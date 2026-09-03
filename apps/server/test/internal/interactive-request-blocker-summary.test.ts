@@ -11,6 +11,7 @@ function interaction(
     threadId: "thr_child",
     status: "pending" as const,
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
   };

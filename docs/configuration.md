@@ -410,8 +410,12 @@ an agent that nests skills or reads them from every ancestor directory),
 (only if the agent accepts an explicit compaction request — bb hides
 `/compact` otherwise), `supportsPlan` (only if the agent exposes a `plan`
 session mode over ACP — bb offers the composer's `/plan` action and switches
-the session into that mode for plan turns), and `dialect` (the vendor side
-channels bb reads for the agent: `cursor`, `opencode`, `omp`, or `grok`).
+the session into that mode for plan turns), `supportsSubagents` (only if the
+agent reports a subagent roster over ACP — bb then shows the thread's live
+roster in the app and `bb thread subagents` on the CLI; no shipped agent
+emits a roster today, so the surface stays dormant until omp adds ACP
+roster emission), and `dialect` (the vendor side channels bb reads for the
+agent: `cursor`, `opencode`, `omp`, or `grok`).
 Editing a past message (session rewind) stays unavailable for ACP agents:
 ACP `session/fork` can only fork a session's current end, never an earlier
 point, so no `fork` declaration is offered for these entries.

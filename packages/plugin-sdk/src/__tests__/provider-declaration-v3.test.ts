@@ -83,6 +83,33 @@ describe("provider declaration target-state fields", () => {
     expect("extensionKinds" in normalized).toBe(false);
   });
 
+  it("normalizes supportsSubagents to false when absent and carries a true declaration", () => {
+    expect(
+      validatePluginProviderDeclaration(declaration()).capabilities
+        .supportsSubagents,
+    ).toBe(false);
+    expect(
+      validatePluginProviderDeclaration(
+        declaration({
+          capabilities: {
+            ...declaration().capabilities,
+            supportsSubagents: true,
+          },
+        }),
+      ).capabilities.supportsSubagents,
+    ).toBe(true);
+    expect(() =>
+      validatePluginProviderDeclaration(
+        declaration({
+          capabilities: {
+            ...declaration().capabilities,
+            supportsSubagents: "yes" as unknown as boolean,
+          },
+        }),
+      ),
+    ).toThrow(/capabilities\.supportsSubagents must be a boolean/u);
+  });
+
   it("rejects incomplete strings, duplicate option ids, and malformed extension kinds", () => {
     expect(() =>
       validatePluginProviderDeclaration(

@@ -58,6 +58,7 @@ const planReview: PendingInteraction = {
   providerRequestId: "req_1",
   status: "pending",
   statusReason: null,
+  agentLabel: null,
   createdAt: 1,
   resolvedAt: null,
   resolution: null,
@@ -116,6 +117,7 @@ const pluginRequest: PluginPendingInteraction = {
   origin: { kind: "plugin", pluginId: "secrets", rendererId: "secret-request" },
   status: "pending",
   statusReason: null,
+  agentLabel: null,
   createdAt: 1,
   expiresAt: null,
   resolvedAt: null,
@@ -332,5 +334,35 @@ describe("ThreadPendingInteractionBanner presentation detail images", () => {
     const ask = screen.getByTestId("tool-use-ask");
     expect(container.querySelector("img")).toBeNull();
     expect(ask.textContent).toContain("[Image: pixel]");
+  });
+});
+
+describe("ThreadPendingInteractionBanner agent attribution", () => {
+  it("labels the ask with the agent that raised it when one is set", () => {
+    renderBanner({ ...toolUseApproval, agentLabel: "Roster researcher" });
+
+    expect(screen.getByText("Agent: Roster researcher")).toBeTruthy();
+  });
+
+  it("omits the agent label line when no agent is attributed", () => {
+    renderBanner(planReview);
+
+    expect(screen.queryByText(/^Agent:/)).toBeNull();
+  });
+
+  it("shows the agent label above a provider plugin request too", () => {
+    function SecretForm({ interaction }: PluginPendingInteractionProps) {
+      return <div data-testid="secret-form">{interaction.title}</div>;
+    }
+    setPluginSlotRegistrations(
+      "secrets",
+      registrationSet({
+        pendingInteractions: [{ id: "secret-request", component: SecretForm }],
+      }),
+    );
+    renderBanner({ ...providerPluginRequest, agentLabel: "Sealed runner" });
+
+    expect(screen.getByText("Agent: Sealed runner")).toBeTruthy();
+    expect(screen.getByTestId("secret-form").textContent).toBe("Add a token");
   });
 });

@@ -941,6 +941,11 @@ export interface PluginProviderCapabilities {
   /** The provider stores a thread name of its own, so BB forwards renames to
    * it. */
   supportsThreadRename: boolean;
+  /** The provider reports a live subagent roster for its sessions — gates the
+   * roster surface in thread views. No shipped agent reports one today; the
+   * running bridge still has to advertise roster emission in its initialize
+   * handshake before any roster events arrive. */
+  supportsSubagents?: boolean;
   /** Permission modes the provider can actually run in. Non-empty, no
    * duplicates. */
   permissionModes: readonly PluginProviderPermissionMode[];

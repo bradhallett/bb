@@ -128,6 +128,7 @@ function makeBannerTimeline(): ThreadTimelineResponse {
     activeWorkflows: [],
     activeBackgroundCommands: [],
     pendingTodos: null,
+    subagents: null,
     goal: {
       sourceSeq: 1,
       updatedAt: 100,

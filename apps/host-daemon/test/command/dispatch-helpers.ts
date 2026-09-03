@@ -568,6 +568,7 @@ export const DISPATCH_TEST_BRIDGE_LAUNCH: HostDaemonBridgeLaunch = {
     supportsThreadArchive: true,
     supportsThreadRename: true,
     fork: "checkpoint",
+    supportsSubagents: false,
   },
 };
 

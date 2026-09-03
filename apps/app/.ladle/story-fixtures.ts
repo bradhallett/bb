@@ -117,6 +117,7 @@ function makeStoryProvider(
       supportsNativeUserQuestion: false,
       supportsFork: true,
       supportsSessionRewind: false,
+      supportsSubagents: false,
       modelCatalogScope: "workspace",
       permissionModes: ["accept-edits", "auto", "full"],
     },

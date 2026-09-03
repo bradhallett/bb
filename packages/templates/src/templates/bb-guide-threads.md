@@ -170,6 +170,16 @@ Inspecting:
   bb thread output [id]                    Get the final output of a thread
     --self                                 Target current thread
 
+  bb thread subagents <id>                 Show the subagent roster the provider last reported
+    --json                                 Machine-readable roster JSON
+
+  The roster reads the thread's latest snapshot: each subagent's state
+  (running, idle, parked, or aborted), label, and summary. No shipped agent
+  reports one today, so the command prints its no-roster notice until a
+  provider emits roster updates; `--json` prints `null` then and the roster
+  array otherwise (possibly empty, meaning the provider reported zero
+  subagents).
+
   bb thread wait <id>                      Wait for a thread status or event (defaults to --status idle)
     --status <status>                      Wait for this status
     --event <type>                         Wait for this event type

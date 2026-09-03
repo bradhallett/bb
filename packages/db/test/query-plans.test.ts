@@ -1065,6 +1065,9 @@ describe("slow query index plans", () => {
     if (!statement) {
       throw new Error("Expected the latest-thread-state lookup SQL");
     }
+    expect(statement.sql).toContain(
+      "IN ('thread/goal/updated', 'thread/goal/cleared', 'thread/extensionState/updated', 'thread/subagents/updated')",
+    );
 
     const details = queryPlanDetails({
       db,

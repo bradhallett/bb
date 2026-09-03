@@ -34,8 +34,13 @@ interface AcpEquivalenceHarness {
 
 const SESSION_CWD = "/workspace";
 
-function createHarness(): AcpEquivalenceHarness {
-  const translator = createAcpDeltaTranslator({ cwd: SESSION_CWD });
+function createHarness(
+  options: { subagents?: boolean } = {},
+): AcpEquivalenceHarness {
+  const translator = createAcpDeltaTranslator({
+    cwd: SESSION_CWD,
+    ...(options.subagents === true ? { subagents: true } : {}),
+  });
   const assembler = createDeltaAssembler({
     providerId: "acp",
     entropyPrefix: ENTROPY,
@@ -487,8 +492,10 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
     return { added, removed };
   }
 
-  function startedHarness(): AcpEquivalenceHarness {
-    const harness = createHarness();
+  function startedHarness(
+    options: { subagents?: boolean } = {},
+  ): AcpEquivalenceHarness {
+    const harness = createHarness(options);
     harness.translate(turnStartedEvent());
     return harness;
   }
@@ -556,6 +563,160 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
     expect(
       harness.translate(
         updateEvent({ sessionUpdate: "usage_update", used: 1, size: "200000" }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("translates a subagents roster snapshot into a thread-scoped event outside a turn", () => {
+    const harness = createHarness({ subagents: true });
+
+    expect(
+      harness.translate(
+        updateEvent({
+          sessionUpdate: "subagents_update",
+          agents: [
+            {
+              id: "subagent-1",
+              label: "Scout",
+              state: "running",
+              summary: "Mapping the workspace",
+              transcriptRef: "tr_subagent_1",
+            },
+            {
+              id: "subagent-2",
+              label: "Reviewer",
+              state: "idle",
+              summary: null,
+              transcriptRef: null,
+            },
+          ],
+        }),
+      ),
+    ).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [
+          {
+            id: "subagent-1",
+            label: "Scout",
+            state: "running",
+            summary: "Mapping the workspace",
+            transcriptRef: "tr_subagent_1",
+          },
+          {
+            id: "subagent-2",
+            label: "Reviewer",
+            state: "idle",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("replaces the roster snapshot on a second subagents update", () => {
+    const harness = createHarness({ subagents: true });
+    harness.translate(
+      updateEvent({
+        sessionUpdate: "subagents_update",
+        agents: [
+          {
+            id: "subagent-1",
+            label: "Scout",
+            state: "running",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      }),
+    );
+
+    expect(
+      harness.translate(
+        updateEvent({ sessionUpdate: "subagents_update", agents: [] }),
+      ),
+    ).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [],
+      },
+    ]);
+  });
+
+  it("keeps a roster snapshot thread-scoped while a turn is open", () => {
+    const harness = startedHarness({ subagents: true });
+
+    expect(
+      harness.translate(
+        updateEvent({
+          sessionUpdate: "subagents_update",
+          agents: [
+            {
+              id: "subagent-1",
+              label: "Scout",
+              state: "running",
+              summary: null,
+              transcriptRef: null,
+            },
+          ],
+        }),
+      ),
+    ).toEqual([
+      {
+        type: "thread/subagents/updated",
+        threadId: "",
+        providerThreadId: "",
+        scope: threadScope(),
+        agents: [
+          {
+            id: "subagent-1",
+            label: "Scout",
+            state: "running",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("drops subagents updates when the provider did not declare the capability", () => {
+    const harness = createHarness();
+
+    expect(
+      harness.translate(
+        updateEvent({
+          sessionUpdate: "subagents_update",
+          agents: [
+            {
+              id: "subagent-1",
+              label: "Scout",
+              state: "running",
+              summary: null,
+              transcriptRef: null,
+            },
+          ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("ignores malformed subagents updates even when the capability is declared", () => {
+    const harness = createHarness({ subagents: true });
+
+    expect(
+      harness.translate(
+        updateEvent({
+          sessionUpdate: "subagents_update",
+          agents: [{ id: "", label: "Scout", state: "running" }],
+        }),
       ),
     ).toEqual([]);
   });

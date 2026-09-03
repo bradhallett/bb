@@ -19,6 +19,7 @@ function makeApproval(id: string, createdAt: number): PendingInteraction {
     status: "pending",
     resolution: null,
     statusReason: null,
+    agentLabel: null,
     createdAt,
     resolvedAt: null,
     payload: {

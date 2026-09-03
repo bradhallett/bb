@@ -176,6 +176,44 @@ describe("thread delta grammar v3", () => {
     ).toBe(false);
   });
 
+  it("parses thread.subagents roster snapshots and rejects unknown states", () => {
+    expect(
+      threadDeltaSchema.safeParse({
+        kind: "thread.subagents",
+        agents: [
+          {
+            id: "agent-1",
+            label: "Scout",
+            state: "running",
+            summary: "Mapping the repository",
+            transcriptRef: "tr_agent_1",
+          },
+          {
+            id: "agent-2",
+            label: "Reviewer",
+            state: "aborted",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      threadDeltaSchema.safeParse({
+        kind: "thread.subagents",
+        agents: [
+          {
+            id: "agent-1",
+            label: "Scout",
+            state: "sleeping",
+            summary: null,
+            transcriptRef: null,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a background-delegation snapshot on item.progress beside background tasks", () => {
     expect(
       threadDeltaSchema.safeParse({
@@ -229,6 +267,16 @@ describe("handshake v3 capabilities", () => {
     const parsed = initializeResultSchema.parse({ protocolVersion: 2 });
     expect(parsed.capabilities.grammarVersions).toEqual([2, 2]);
     expect(parsed.capabilities.steerMode).toBe("queue");
+  });
+
+  it("defaults the subagents roster capability to false", () => {
+    const parsed = initializeResultSchema.parse({ protocolVersion: 2 });
+    expect(parsed.capabilities.subagents).toBe(false);
+  });
+
+  it("reads a bridge that declares the subagents roster capability", () => {
+    const parsed = bridgeCapabilitiesSchema.parse({ subagents: true });
+    expect(parsed.subagents).toBe(true);
   });
 
   it("accepts an explicit grammar range and steer mode", () => {

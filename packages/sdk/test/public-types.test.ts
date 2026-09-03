@@ -382,6 +382,7 @@ type ExpectedThreadsKey =
   | "send"
   | "spawn"
   | "stop"
+  | "subagents"
   | "storageFiles"
   | "storageLocation"
   | "storagePaths"

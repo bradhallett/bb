@@ -26,6 +26,7 @@ import type {
   ThreadTimelineGoal,
   ThreadTimelineModelFallback,
   ThreadTimelinePendingTodos,
+  ThreadSubagent,
   ThreadWithRuntime,
 } from "@bb/domain";
 import type {
@@ -52,6 +53,7 @@ import { ThreadGoalCard } from "@/components/promptbox/banner/ThreadGoalCard";
 import { ThreadTodoCard } from "@/components/promptbox/banner/ThreadTodoCard";
 import { ThreadPromptModeCard } from "@/components/promptbox/banner/ThreadPromptModeCard";
 import { ThreadWorkflowCard } from "@/components/promptbox/banner/ThreadWorkflowCard";
+import { ThreadSubagentsCard } from "@/components/promptbox/banner/ThreadSubagentsCard";
 import { ThreadBackgroundCommandsCard } from "@/components/promptbox/banner/ThreadBackgroundCommandsCard";
 import { ThreadModelFallbackCard } from "@/components/promptbox/banner/ThreadModelFallbackCard";
 import { InlineMessageEditorFrame } from "@/components/promptbox/InlineMessageEditorFrame";
@@ -175,6 +177,7 @@ interface ThreadDetailPromptAreaProps {
   contextBannerMergeBase: ContextBannerMergeBaseConfig | null;
   pendingTodos: ThreadTimelinePendingTodos | null;
   activePromptMode: ThreadTimelineActivePromptMode | null;
+  subagents: ThreadSubagent[] | null;
   goal: ThreadTimelineGoal | null;
   modelFallback: ThreadTimelineModelFallback | null;
   activeWorkflows: TimelineWorkflowWorkRow[];
@@ -367,6 +370,7 @@ export function ThreadDetailPromptArea({
   workspaceStatusPending,
   contextBannerMergeBase,
   pendingTodos,
+  subagents,
   activePromptMode,
   goal,
   modelFallback,
@@ -575,6 +579,7 @@ export function ThreadDetailPromptArea({
       pullRequestMergeMethod,
     ]);
   const [isGoalExpanded, setIsGoalExpanded] = useState(false);
+  const [isSubagentsExpanded, setIsSubagentsExpanded] = useState(false);
   const [isTodoExpanded, setIsTodoExpanded] = useState(false);
   const [isPromptModeExpanded, setIsPromptModeExpanded] = useState(false);
   const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<
@@ -1550,6 +1555,15 @@ export function ThreadDetailPromptArea({
           isExpanded={isBackgroundCommandsExpanded}
           onToggle={() => setIsBackgroundCommandsExpanded((value) => !value)}
         />
+        <ThreadSubagentsCard
+          agents={
+            thread.archivedAt === null && environmentGoneStatus === null
+              ? subagents
+              : null
+          }
+          isExpanded={isSubagentsExpanded}
+          onToggle={() => setIsSubagentsExpanded((value) => !value)}
+        />
         {activePromptModeCard}
         {activeGoalCard}
         <ThreadTodoCard
@@ -1648,6 +1662,8 @@ export function ThreadDetailPromptArea({
       queuedMessageEditor,
       activeGoalCard,
       activePromptModeCard,
+      isSubagentsExpanded,
+      subagents,
       isTodoExpanded,
       activeWorkflows,
       expandedWorkflowIds,
@@ -1692,6 +1708,13 @@ export function ThreadDetailPromptArea({
         {childPendingInteractionBanners}
         {activePromptMode ? activePromptModeCard : null}
         {goal ? activeGoalCard : null}
+        {subagents ? (
+          <ThreadSubagentsCard
+            agents={subagents}
+            isExpanded={isSubagentsExpanded}
+            onToggle={() => setIsSubagentsExpanded((value) => !value)}
+          />
+        ) : null}
       </>
     ),
     [
@@ -1700,6 +1723,8 @@ export function ThreadDetailPromptArea({
       activePromptModeCard,
       childPendingInteractionBanners,
       goal,
+      isSubagentsExpanded,
+      subagents,
     ],
   );
 

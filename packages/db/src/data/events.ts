@@ -1139,7 +1139,7 @@ export interface ListStoredTimelineWindowEventRowsArgs {
   beforeSequence?: number;
   excludedTypes?: readonly ThreadEventType[];
   maxInlineOutputChars: InlineOutputCharLimit;
-  sequenceStart: number;
+  sequenceStart?: number;
   threadId: string;
 }
 
@@ -1318,12 +1318,13 @@ export function listLatestThreadStateEventRowsByThreadIds(
         "thread/goal/updated",
         "thread/goal/cleared",
         "thread/extensionState/updated",
+        "thread/subagents/updated",
       ] as const satisfies readonly ThreadEventType[];
       const stateTypesPredicate = sql.raw(
         `IN (${stateTypes.map((type) => `'${type}'`).join(", ")})`,
       );
       const kindPredicate = sql`(
-        candidate.type <> 'thread/extensionState/updated'
+        candidate.type NOT IN ('thread/extensionState/updated', 'thread/subagents/updated')
         OR json_extract(candidate.data, '$.kind') = ${args.kind}
       )`;
       const threadIdList = sql.join(
@@ -2810,9 +2811,11 @@ function storedTimelineWindowConditions(
 ): SQL[] {
   const conditions: SQL[] = [
     eq(events.threadId, args.threadId),
-    gte(events.sequence, args.sequenceStart),
     isNotSupersededBackgroundTaskProgress,
   ];
+  if (args.sequenceStart !== undefined) {
+    conditions.push(gte(events.sequence, args.sequenceStart));
+  }
   if (args.beforeSequence !== undefined) {
     conditions.push(lt(events.sequence, args.beforeSequence));
   }

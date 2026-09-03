@@ -1227,6 +1227,7 @@ describe("pending interaction lifecycle", () => {
           id: pluginInteraction!.id,
           status: "pending",
           statusReason: null,
+          agentLabel: null,
           origin: {
             kind: "plugin",
             pluginId: "secrets",

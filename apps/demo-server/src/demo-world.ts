@@ -408,6 +408,7 @@ export class DemoWorld {
       activeBackgroundCommands: [],
       pendingTodos: null,
       goal: null,
+      subagents: null,
       modelFallback: null,
       contextWindowUsage: {
         estimated: false,

@@ -9,6 +9,7 @@ import {
 export {
   checkItemOpensBeforeDelta,
   checkPresentationIconsDeclared,
+  checkSubagentsRosterState,
 } from "./scenarios.js";
 export {
   checkRecordedCellReplay,
@@ -60,6 +61,7 @@ export async function runBridgeConformance(
       resolveProviderTurnId: (threadId, bbTurnId) =>
         collector.assembler.getProviderTurnId(threadId, bbTurnId),
       fork: handshake.capabilities?.fork ?? "none",
+      subagents: handshake.capabilities?.subagents ?? false,
     })),
   );
 

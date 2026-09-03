@@ -21,6 +21,7 @@ function toolUseInteraction(args: {
     providerRequestId: "req_1",
     status: "pending",
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     resolvedAt: null,
     resolution: null,

@@ -61,6 +61,7 @@ function pendingQuestion(
     threadId,
     status: "pending",
     statusReason: null,
+    agentLabel: null,
     createdAt: 1,
     expiresAt: null,
     resolvedAt: null,

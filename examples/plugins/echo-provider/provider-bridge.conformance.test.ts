@@ -55,6 +55,7 @@ it("passes the canonical protocol suite", async () => {
     "events/schema-valid": "pass",
     "item/opens-before-delta": "pass",
     "stop/release-not-interrupted": "pass",
+    "subagents/roster-state": "pass",
     "session/resume-identity": "pass",
     "session/resume-id-uniqueness": "pass",
     "skills/configure-declared": "pass",

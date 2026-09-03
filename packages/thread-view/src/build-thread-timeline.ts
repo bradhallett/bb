@@ -24,6 +24,7 @@ import {
   type ThreadTimelineGoal,
   type ThreadTimelineModelFallback,
   type ThreadTimelinePendingTodos,
+  type ThreadSubagent,
 } from "@bb/domain";
 import type {
   EventProjectionErrorMessage,
@@ -67,6 +68,7 @@ import {
 } from "./active-prompt-mode-extraction.js";
 import { extractThreadTimelineGoal } from "./goal-snapshot-extraction.js";
 import { extractThreadTimelineModelFallback } from "./model-fallback-extraction.js";
+import { extractThreadTimelineSubagents } from "./subagent-snapshot-extraction.js";
 import { extractThreadTimelinePendingTodos } from "./todo-snapshot-extraction.js";
 import { buildTimelineErrorDisplay } from "./error-display.js";
 
@@ -103,6 +105,7 @@ export interface ThreadTimelineFromEventsResult {
   activeBackgroundCommands: TimelineWorkflowWorkRow[];
   contextWindowUsage: ThreadContextWindowUsage | null;
   goal: ThreadTimelineGoal | null;
+  subagents: ThreadSubagent[] | null;
   modelFallback: ThreadTimelineModelFallback | null;
   pendingTodos: ThreadTimelinePendingTodos | null;
   rows: TimelineRow[];
@@ -1385,6 +1388,9 @@ export function buildThreadTimelineFromEvents(
     goal: !args.options.isLatestPage
       ? null
       : extractThreadTimelineGoal(args.events),
+    subagents: !args.options.isLatestPage
+      ? null
+      : extractThreadTimelineSubagents(args.events),
     modelFallback: !args.options.isLatestPage
       ? null
       : extractThreadTimelineModelFallback(args.events),

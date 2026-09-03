@@ -407,6 +407,7 @@ const pendingInteractionsMigrationWhen = 1783626227375;
 const permissionModesMigrationWhen = 1784311522462;
 const branchLocalThreadTabsMigrationWhen = 1783633750817;
 const eventParentToolCallMigrationWhen = 1787181956957;
+const subagentRosterStateMigrationWhen = 1788464169953;
 const eventParentToolCallPreJsonValidMigrationHash =
   "79d39e7b68d1db8ba02614fe4cc227cc0c154d77c7183f2e37ed2d8475412993";
 const eventLargeValuesPreOptimizationHash =
@@ -736,6 +737,43 @@ function dropQueueReworkSchema(db: DbConnection): void {
   if (threadColumns.some((column) => column.name === "pending_start_context")) {
     db.$client
       .prepare("ALTER TABLE threads DROP COLUMN pending_start_context")
+      .run();
+  }
+}
+
+/**
+ * Undo migration 0113, the subagent roster state.
+ *
+ * 0113 widens the thread-state partial index to also cover
+ * 'thread/subagents/updated' and adds the pending interaction's agent
+ * label. A rewind that clears its journal row must restore the narrower
+ * index 0106 created, because the replay opens with an unconditional
+ * DROP INDEX that fails when the index is missing, and drop the column
+ * before the replay's ADD hits a table that already has it.
+ */
+function dropSubagentRosterSchema(db: DbConnection): void {
+  db.$client
+    .prepare("DROP INDEX IF EXISTS events_thread_state_thread_sequence_idx")
+    .run();
+  db.$client
+    .prepare(
+      `
+        CREATE INDEX IF NOT EXISTS events_thread_state_thread_sequence_idx
+          ON events (thread_id, sequence)
+          WHERE type IN (
+            'thread/goal/updated',
+            'thread/goal/cleared',
+            'thread/extensionState/updated'
+          )
+      `,
+    )
+    .run();
+  const pendingColumns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(pending_interactions)")
+    .all();
+  if (pendingColumns.some((column) => column.name === "agent_label")) {
+    db.$client
+      .prepare("ALTER TABLE pending_interactions DROP COLUMN agent_label")
       .run();
   }
 }
@@ -2154,6 +2192,7 @@ describe("migrate", () => {
       dropMarketplaceCatalogSchema(db);
       dropEventParentToolCallIdColumn(db);
       dropQueueReworkSchema(db);
+      dropSubagentRosterSchema(db);
 
       restoreLegacyThreadOriginColumn(db);
       migrate(db);
@@ -2416,6 +2455,7 @@ describe("migrate", () => {
         CREATE INDEX pending_interactions_status_created_idx
           ON pending_interactions (status, created_at);
       `);
+      dropSubagentRosterSchema(db);
       db.$client
         .prepare<DeleteMigrationParameters>(
           "DELETE FROM __drizzle_migrations WHERE created_at = ?",
@@ -2429,6 +2469,11 @@ describe("migrate", () => {
           `,
         )
         .run("branch-local-thread-tabs", branchLocalThreadTabsMigrationWhen);
+      db.$client
+        .prepare<DeleteMigrationParameters>(
+          "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
+        )
+        .run(subagentRosterStateMigrationWhen);
 
       migrate(db);
 
@@ -2559,6 +2604,7 @@ describe("migrate", () => {
       dropMarketplaceCatalogSchema(db);
       dropEventParentToolCallIdColumn(db);
       dropQueueReworkSchema(db);
+      dropSubagentRosterSchema(db);
 
       restoreLegacyThreadOriginColumn(db);
       expect(
@@ -2661,6 +2707,7 @@ describe("migrate", () => {
       dropMarketplaceCatalogSchema(db);
       dropEventParentToolCallIdColumn(db);
       dropQueueReworkSchema(db);
+      dropSubagentRosterSchema(db);
 
       restoreLegacyThreadOriginColumn(db);
       expect(() => migrate(db)).not.toThrow();
@@ -5230,6 +5277,7 @@ describe("migrate", () => {
       dropEventParentToolCallIdColumn(db);
       dropMarketplaceStatsColumn(db);
       dropQueueReworkSchema(db);
+      dropSubagentRosterSchema(db);
       db.$client
         .prepare<DeleteMigrationParameters>(
           "DELETE FROM __drizzle_migrations WHERE created_at >= ?",

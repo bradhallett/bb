@@ -100,6 +100,7 @@ function storyTimeline(
     activeBackgroundCommands: [],
     pendingTodos: null,
     goal,
+    subagents: null,
     modelFallback: null,
     maxSeq: goal.sourceSeq,
     timelinePage: {

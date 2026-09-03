@@ -68,6 +68,7 @@ type RegisterPendingInteractionResult =
     };
 
 interface RegisterPendingInteractionArgs {
+  agentLabel?: string | null;
   interaction: PendingInteractionCreate;
 }
 
@@ -425,6 +426,7 @@ export class PendingInteractionLifecycle {
         row: createPendingInteraction(tx, {
           threadId: interaction.threadId,
           turnId: interaction.turnId,
+          agentLabel: args.agentLabel ?? null,
           originKind: "provider",
           providerId: interaction.providerId,
           providerThreadId: interaction.providerThreadId,

@@ -168,6 +168,7 @@ const hostDaemonBridgeLaunchSchema = z
         supportsThreadArchive: z.boolean(),
         supportsThreadRename: z.boolean(),
         fork: providerForkSchema,
+        supportsSubagents: z.boolean(),
       })
       .strict(),
     providerOptions: jsonObjectSchema,

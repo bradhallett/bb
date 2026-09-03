@@ -728,7 +728,7 @@ export const events = sqliteTable(
     index("events_thread_state_thread_sequence_idx")
       .on(table.threadId, table.sequence)
       .where(
-        sql`${table.type} IN ('thread/goal/updated', 'thread/goal/cleared', 'thread/extensionState/updated')`,
+        sql`${table.type} IN ('thread/goal/updated', 'thread/goal/cleared', 'thread/extensionState/updated', 'thread/subagents/updated')`,
       ),
     check(
       "events_scope_shape_check",
@@ -993,6 +993,7 @@ export const pendingInteractions = sqliteTable(
     providerRequestId: text("provider_request_id"),
     pluginId: text("plugin_id"),
     rendererId: text("renderer_id"),
+    agentLabel: text("agent_label"),
     status: text("status").$type<PendingInteractionStatus>().notNull(),
     payload: text("payload").notNull(),
     resolution: text("resolution"),
