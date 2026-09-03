@@ -2368,6 +2368,9 @@ describe("acp bridge", () => {
       "busy-then-echo",
     ]);
     expect(threadEventsOfType("turn/started")).toHaveLength(1);
+    expect(
+      emittedDeltaKinds().filter((kind) => kind === "input.accepted"),
+    ).toHaveLength(1);
   });
 
   it("fails the turn when the retried prompt is session_busy again", async () => {
@@ -2424,6 +2427,7 @@ describe("acp bridge", () => {
       expect(await waitForTurnCompleted()).toMatchObject({
         status: "failed",
       });
+      expect(loggedPrompts(promptLog)).toEqual(["busy-wrong-reason"]);
     },
   );
 
@@ -2453,6 +2457,7 @@ describe("acp bridge", () => {
         message: expect.stringContaining("Agent is already processing"),
       });
       expect(await waitForTurnCompleted()).toMatchObject({ status: "failed" });
+      expect(loggedPrompts(promptLog)).toEqual(["busy-then-never-idle"]);
     } finally {
       vi.unstubAllEnvs();
     }
@@ -2494,6 +2499,30 @@ describe("acp bridge", () => {
       "warm-up",
       "busy-second-turn",
       "busy-second-turn",
+    ]);
+  });
+
+  it("retries immediately when the busy error and the idle update arrive in one chunk", async () => {
+    const promptLog = join(workspaceDir, "busy-same-chunk-prompt-log.jsonl");
+    const { providerThreadId } = await startThread({
+      envVars: {
+        FAKE_ACP_PROMPT_LOG: promptLog,
+        FAKE_ACP_SESSION_BUSY_PROMPTS: "1",
+        FAKE_ACP_SESSION_BUSY_SAME_CHUNK: "1",
+      },
+    });
+
+    const turnId = sendTurnRequest("turn/start", providerThreadId, {
+      input: [{ type: "text", text: "busy-same-chunk", mentions: [] }],
+    });
+    expect((await waitForResponse(turnId)).error).toBeUndefined();
+
+    const completed = await waitForTurnCompleted();
+    expect(completed).toMatchObject({ status: "completed" });
+    expect(agentMessageTexts().join("")).toContain("echo:busy-same-chunk");
+    expect(loggedPrompts(promptLog)).toEqual([
+      "busy-same-chunk",
+      "busy-same-chunk",
     ]);
   });
 

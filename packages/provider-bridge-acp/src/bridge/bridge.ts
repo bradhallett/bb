@@ -178,6 +178,7 @@ interface AcpThreadSession {
   queuedInputs: AcpPendingTurnInput[];
   promptRequestPending: boolean;
   busyPromptWait: AcpSessionBusyPromptWait | undefined;
+  sessionInfoUpdates: number;
   cancelRequested: boolean;
   loading: boolean;
   loadingSessionId: string | undefined;
@@ -1731,6 +1732,7 @@ async function startAgentSession(
     queuedInputs: [],
     promptRequestPending: false,
     busyPromptWait: undefined,
+    sessionInfoUpdates: 0,
     cancelRequested: false,
     loading: false,
     loadingSessionId: undefined,
@@ -2108,6 +2110,7 @@ function runTurn(
       }
 
       let stopReason: z.infer<typeof acpStopReasonSchema>;
+      const sessionInfoUpdatesSeen = session.sessionInfoUpdates;
       session.cancelRequested = false;
       try {
         session.promptRequestPending = true;
@@ -2132,7 +2135,9 @@ function runTurn(
         session.promptRequestPending = false;
         if (!busyRetrySpent && isSessionBusyPromptError(error)) {
           busyRetrySpent = true;
-          if (await waitForSessionIdleAfterBusy(session)) {
+          const idleBeforeWait =
+            session.sessionInfoUpdates !== sessionInfoUpdatesSeen;
+          if (idleBeforeWait || (await waitForSessionIdleAfterBusy(session))) {
             continue;
           }
         }
@@ -2314,11 +2319,11 @@ function handleAgentNotification(
   if (parsed.data.sessionId !== session.providerThreadId) {
     return;
   }
-  if (
-    session.busyPromptWait !== undefined &&
-    parsed.data.update.sessionUpdate === "session_info_update"
-  ) {
-    settleSessionBusyPromptWait(session, true);
+  if (parsed.data.update.sessionUpdate === "session_info_update") {
+    session.sessionInfoUpdates += 1;
+    if (session.busyPromptWait !== undefined) {
+      settleSessionBusyPromptWait(session, true);
+    }
   }
   if (session.activePromptKind === "compaction") {
     const chunk = acpAgentMessageChunkUpdateSchema.safeParse(

@@ -71,6 +71,11 @@
  * - FAKE_ACP_SESSION_BUSY_REASON
  *                            → override data.reason ("none" omits it) so the
  *                              busy branch must not fire
+ * - FAKE_ACP_SESSION_BUSY_SAME_CHUNK=1
+ *                            → write the busy error and the idle updates in
+ *                              one stdout write (same JSON-RPC chunk), so the
+ *                              retry cannot rely on the wait being armed
+ *                              before the idle update is handled
  * - FAKE_ACP_SESSION_BUSY_IDLE_DELAY_MS=<ms>
  *                            → after a busy rejection, emit omp's end-of-turn
  *                              updates (usage_update then session_info_update)
@@ -122,6 +127,8 @@ const sessionBusyIdleDelayMs = Number(
   process.env.FAKE_ACP_SESSION_BUSY_IDLE_DELAY_MS ?? "100",
 );
 const sessionBusyReasonOverride = process.env.FAKE_ACP_SESSION_BUSY_REASON;
+const sessionBusySameChunk =
+  process.env.FAKE_ACP_SESSION_BUSY_SAME_CHUNK === "1";
 let sessionBusyPromptsRemaining = sessionBusyPrompts;
 // `--list-models` is the agent's own model-list mode: the bridge derives its
 // list command from the launch spec's agent binary plus `modelCli.listArgs`,
@@ -454,7 +461,7 @@ async function handlePrompt(message) {
       sessionBusyReasonOverride === "none"
         ? undefined
         : (sessionBusyReasonOverride ?? "session_busy");
-    send({
+    const busyResponse = {
       jsonrpc: "2.0",
       id: message.id,
       error: {
@@ -466,20 +473,53 @@ async function handlePrompt(message) {
           hint: "steer|followUp|wait",
         },
       },
-    });
-    if (sessionBusyIdleDelayMs > 0) {
-      setTimeout(() => {
-        notifyUpdate({
-          sessionUpdate: "usage_update",
-          used: 12_345,
-          size: 200_000,
-        });
-        notifyUpdate({
-          sessionUpdate: "session_info_update",
-          title: "Fake ACP",
-          updatedAt: new Date().toISOString(),
-        });
-      }, sessionBusyIdleDelayMs);
+    };
+    if (sessionBusySameChunk) {
+      process.stdout.write(
+        [
+          JSON.stringify(busyResponse),
+          JSON.stringify({
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: activeSessionId,
+              update: {
+                sessionUpdate: "usage_update",
+                used: 12_345,
+                size: 200_000,
+              },
+            },
+          }),
+          JSON.stringify({
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: activeSessionId,
+              update: {
+                sessionUpdate: "session_info_update",
+                title: "Fake ACP",
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          }),
+        ].join("\n") + "\n",
+      );
+    } else {
+      send(busyResponse);
+      if (sessionBusyIdleDelayMs > 0) {
+        setTimeout(() => {
+          notifyUpdate({
+            sessionUpdate: "usage_update",
+            used: 12_345,
+            size: 200_000,
+          });
+          notifyUpdate({
+            sessionUpdate: "session_info_update",
+            title: "Fake ACP",
+            updatedAt: new Date().toISOString(),
+          });
+        }, sessionBusyIdleDelayMs);
+      }
     }
     return;
   }
