@@ -157,6 +157,11 @@ interface AcpPendingTurnInput {
   requestId: AcpBridgeRequestId | null;
 }
 
+interface AcpSessionBusyPromptWait {
+  settle: (idle: boolean) => void;
+  timer: NodeJS.Timeout;
+}
+
 interface AcpThreadSession {
   bbThreadId: string;
   providerThreadId: string;
@@ -172,6 +177,7 @@ interface AcpThreadSession {
   compactionAgentMessage: string;
   queuedInputs: AcpPendingTurnInput[];
   promptRequestPending: boolean;
+  busyPromptWait: AcpSessionBusyPromptWait | undefined;
   cancelRequested: boolean;
   loading: boolean;
   loadingSessionId: string | undefined;
@@ -199,6 +205,14 @@ let runtimeRequestIdCounter = 0;
 let dynamicToolBridgePromise: Promise<AcpDynamicToolBridge> | null = null;
 
 const THREAD_STOP_CANCEL_TIMEOUT_MS = 4_000;
+const ACP_SESSION_BUSY_ERROR_CODE = -32003;
+const SESSION_BUSY_RETRY_TIMEOUT_MS = 10 * 60_000;
+function sessionBusyRetryTimeoutMs(): number {
+  const override = Number(process.env.BB_ACP_SESSION_BUSY_RETRY_TIMEOUT_MS);
+  return Number.isFinite(override) && override > 0
+    ? override
+    : SESSION_BUSY_RETRY_TIMEOUT_MS;
+}
 
 interface BridgeNotification {
   jsonrpc: "2.0";
@@ -1577,6 +1591,7 @@ function removeSession(session: AcpThreadSession): void {
   ) {
     bbThreadIdByProviderThreadId.delete(session.providerThreadId);
   }
+  settleSessionBusyPromptWait(session, false);
 }
 
 async function releaseCursorMcpApproval(
@@ -1715,6 +1730,7 @@ async function startAgentSession(
     compactionAgentMessage: "",
     queuedInputs: [],
     promptRequestPending: false,
+    busyPromptWait: undefined,
     cancelRequested: false,
     loading: false,
     loadingSessionId: undefined,
@@ -1911,6 +1927,7 @@ async function stopSession(session: AcpThreadSession): Promise<void> {
     session,
     "ACP session stopped before the steer was sent",
   );
+  settleSessionBusyPromptWait(session, false);
   cancelPendingPermissions(session);
 
   if (session.activePromptKind !== null && !session.connection.exited) {
@@ -2022,9 +2039,51 @@ function finishTurn(
   dropQueuedTurnInputs(session, "ACP turn ended before the steer was sent");
   session.promptRequestPending = false;
   session.cancelRequested = false;
+  settleSessionBusyPromptWait(session, false);
   emitForSession(session, ACP_TURN_COMPLETED_METHOD, {
     threadId: session.bbThreadId,
     stopReason,
+  });
+}
+
+function isSessionBusyPromptError(error: unknown): boolean {
+  if (!(error instanceof AcpAgentResponseError)) {
+    return false;
+  }
+  if (error.code !== ACP_SESSION_BUSY_ERROR_CODE) {
+    return false;
+  }
+  const data = error.data;
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "reason" in data &&
+    data.reason === "session_busy"
+  );
+}
+
+function settleSessionBusyPromptWait(
+  session: AcpThreadSession,
+  idle: boolean,
+): void {
+  const wait = session.busyPromptWait;
+  if (wait === undefined) {
+    return;
+  }
+  session.busyPromptWait = undefined;
+  clearTimeout(wait.timer);
+  wait.settle(idle);
+}
+
+function waitForSessionIdleAfterBusy(
+  session: AcpThreadSession,
+): Promise<boolean> {
+  return new Promise<boolean>((settle) => {
+    const timer = setTimeout(
+      () => settleSessionBusyPromptWait(session, false),
+      sessionBusyRetryTimeoutMs(),
+    );
+    session.busyPromptWait = { settle, timer };
   });
 }
 
@@ -2039,6 +2098,8 @@ function runTurn(
 
   session.turnSettled = (async () => {
     let pending = firstInput;
+    let inputAccepted = false;
+    let busyRetrySpent = false;
     for (;;) {
       if (session.stopping) {
         dropTurnInput(pending, "ACP session is stopping");
@@ -2058,7 +2119,10 @@ function runTurn(
           },
           resultSchema: acpPromptResultSchema,
         });
-        acceptTurnInput(session, pending);
+        if (!inputAccepted) {
+          acceptTurnInput(session, pending);
+          inputAccepted = true;
+        }
         if (session.queuedInputs.length > 0) {
           requestSteerCancel(session);
         }
@@ -2066,6 +2130,12 @@ function runTurn(
         stopReason = result.stopReason;
       } catch (error) {
         session.promptRequestPending = false;
+        if (!busyRetrySpent && isSessionBusyPromptError(error)) {
+          busyRetrySpent = true;
+          if (await waitForSessionIdleAfterBusy(session)) {
+            continue;
+          }
+        }
         dropTurnInput(pending, "ACP turn failed before the prompt was sent");
         dropQueuedTurnInputs(
           session,
@@ -2087,6 +2157,8 @@ function runTurn(
         const next = session.queuedInputs.shift();
         if (next) {
           pending = next;
+          inputAccepted = false;
+          busyRetrySpent = false;
           continue;
         }
       }
@@ -2241,6 +2313,12 @@ function handleAgentNotification(
   }
   if (parsed.data.sessionId !== session.providerThreadId) {
     return;
+  }
+  if (
+    session.busyPromptWait !== undefined &&
+    parsed.data.update.sessionUpdate === "session_info_update"
+  ) {
+    settleSessionBusyPromptWait(session, true);
   }
   if (session.activePromptKind === "compaction") {
     const chunk = acpAgentMessageChunkUpdateSchema.safeParse(
