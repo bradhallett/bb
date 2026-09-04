@@ -93,6 +93,7 @@ export const KNOWN_ACP_AGENTS: readonly AcpAgentDefinition[] = [
     visibility: "installed",
     dialect: "opencode",
     supportsManualCompaction: true,
+    supportsPlan: true,
     fork: "tip",
     launch: {
       displayName: "opencode",

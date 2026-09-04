@@ -309,7 +309,7 @@ describe("acpProviderDeclaration", () => {
     );
     for (const agent of KNOWN_ACP_AGENTS) {
       expect(byId.get(agent.id)?.composerActions).toEqual(
-        agent.id === "acp-omp" ? ["plan"] : [],
+        ["acp-opencode", "acp-omp"].includes(agent.id) ? ["plan"] : [],
       );
     }
     expect(byId.get("acp-omp")?.capabilities.fork).toBe("tip");
